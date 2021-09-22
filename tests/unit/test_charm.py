@@ -23,15 +23,14 @@ def test_not_leader(harness):
 
 
 def test_render_manifests(harness):
-    harness.set_leader(True)
-    manifests_root = Path("./render_manifests/")
+    manifests_root = Path("./tests/unit/render_manifests/")
     manifests_input_path = manifests_root / "input_simple/"
     # NOTE: imagename substitution is currently hard coded in charm.py, so updating image requires
     # us to update result.yaml as well
     manifests_rendered = manifests_root / "result_simple.yaml"
 
+    harness.set_leader(True)
     harness.set_model_name("test-namespace")
-
     harness.begin()
     harness.charm.manifest_file_root = manifests_input_path
 
@@ -50,20 +49,20 @@ def test_render_manifests(harness):
     ],
 )
 def test_install_minimal(harness, mocker, case):
-    harness.set_leader(True)
     subprocess_run = mocker.patch("subprocess.run")
 
     # Mock check_deployed_resources so we don't try to load/use k8s api
-    check_deployed_resources_run = mocker.patch(
+    mocker.patch(
         "charm.MetacontrollerOperatorCharm._check_deployed_resources",
         return_value=True,
     )
 
-    manifests_root = Path("./render_manifests/")
+    manifests_root = Path("./tests/unit/render_manifests/")
     manifests_input_path = manifests_root / f"input_{case}/"
     manifests_rendered = manifests_root / f"result_{case}.yaml"
 
     harness.set_model_name("test-namespace")
+    harness.set_leader(True)
     harness.begin()
     harness.charm.manifest_file_root = manifests_input_path
 
