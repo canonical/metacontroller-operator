@@ -26,6 +26,7 @@ class MetacontrollerOperatorCharm(CharmBase):
         self.framework.observe(self.on.noop_pebble_ready, self._noop_pebble_ready)
         self.framework.observe(self.on.install, self._install)
         self.framework.observe(self.on.remove, self._remove)
+        self.framework.observe(self.on.update_status, self._update_status)
         # self.framework.observe(self.on.config_changed, self._reconcile)
 
         self.logger = logging.getLogger(__name__)
@@ -38,15 +39,21 @@ class MetacontrollerOperatorCharm(CharmBase):
         self.logger.info("noop_pebble_ready fired")
 
     def _install(self, event):
-        self.logger.info(f"type(event) = {event}")
         self.logger.info("Installing by instantiating Kubernetes objects")
         self.unit.status = MaintenanceStatus("Instantiating Kubernetes objects")
         _, manifests_str = self._render_manifests()
 
         self.logger.info("Applying manifests")
-        subprocess.run(["./kubectl", "apply", "-f-"], input=manifests_str.encode("utf-8"), check=True)
 
-        # TODO: Encapsulate this to reuse in update-status
+        completed_process = subprocess.run(
+            ["./kubectl", "apply", "-f-"],
+            input=manifests_str.encode("utf-8"),
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+        )
+        self.logger.info(f"kubectl returned with code '{completed_process.returncode}'"
+                         f" and output {completed_process.stdout}")
+
         self.logger.info("Waiting for installed Kubernetes objects to be operational")
         max_attempts = 20
         for attempt in range(max_attempts):
@@ -64,6 +71,20 @@ class MetacontrollerOperatorCharm(CharmBase):
                 time.sleep(sleeptime)
         else:
             self.unit.status = MaintenanceStatus("Some kubernetes resources missing/not ready")
+            return
+
+    def _update_status(self, event):
+        self.logger.info(f"Comparing current state to desired state")
+
+        running = self._check_deployed_resources()
+        if running is True:
+            self.logger.info("Resources are ok.  Unit in ActiveStatus")
+            self.unit.status = ActiveStatus()
+            return
+        else:
+            self.logger.info("Resources are missing.  Triggering install to reconcile resources")
+            self.unit.status = MaintenanceStatus("Missing kubernetes resources detected - reinstalling")
+            self._install(event)
             return
 
     def _remove(self, _):
