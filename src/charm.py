@@ -25,6 +25,7 @@ class MetacontrollerOperatorCharm(CharmBase):
         super().__init__(*args)
         self.framework.observe(self.on.noop_pebble_ready, self._noop_pebble_ready)
         self.framework.observe(self.on.install, self._install)
+        self.framework.observe(self.on.remove, self._remove)
         # self.framework.observe(self.on.config_changed, self._reconcile)
 
         self.logger = logging.getLogger(__name__)
@@ -61,14 +62,33 @@ class MetacontrollerOperatorCharm(CharmBase):
 
             # TODO: Add checks for other CRDs/services/etc (or, something generic that runs off the manifest)
 
-            # TODO: Sleep on wins?
-            attempts += 1
-            time.sleep(10)
+            if not running:
+                attempts += 1
+                time.sleep(10)
 
         self.logger.info("Done waiting for objects")
 
         self.logger.info("Manifests application complete")
         self.unit.status = ActiveStatus()
+
+    def _remove(self, _):
+        """Remove charm"""
+        # TODO: How should we test this in our integration tests?
+        # Should I set a status or does Juju set one?
+        self.logger.info("Removing kubernetes objects")
+
+        _, manifests_str = self._render_manifests()
+        completed_process = subprocess.run(
+            ["./kubectl", "delete", "-f-"],
+            input=manifests_str.encode("utf-8"),
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+        )
+        if completed_process.returncode == 0:
+            self.logger.info("Kubernetes objects removed using kubectl")
+        else:
+            self.logger.error(f"Unable to remove kubernetes objects - there may be orphaned resources."
+                              f"  kubectl exited with '{completed_process.stdout}'")
 
     def _render_manifests(self) -> (list, str):
         # Load and render all templates
