@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+import glob
+import subprocess
+import time
+
+from jinja2 import Environment, FileSystemLoader
+import logging
+from pathlib import Path
+
+from kubernetes import client, config
+import kubernetes.client.exceptions
+from oci_image import OCIImageResource, OCIImageResourceError
+from ops.charm import CharmBase
+from ops.framework import StoredState
+from ops.main import main
+from ops.model import ActiveStatus, MaintenanceStatus
+
+
+class MetacontrollerOperatorCharm(CharmBase):
+    """Charm the Metacontroller"""
+
+    _stored = StoredState()
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.framework.observe(self.on.noop_pebble_ready, self._noop_pebble_ready)
+        self.framework.observe(self.on.install, self._install)
+        # self.framework.observe(self.on.config_changed, self._reconcile)
+
+        self.logger = logging.getLogger(__name__)
+        # TODO: Fix file imports and move ./src/files back to ./files
+        self._manifests_file_root = None
+        self.manifest_file_root = "./src/files/manifests/"
+        self.image = OCIImageResource(self, "oci-image")
+
+    def _noop_pebble_ready(self, _):
+        self.logger.info("noop_pebble_ready fired")
+
+    def _install(self, event):
+        self.logger.info(f"type(event) = {event}")
+        self.logger.info("Installing by instantiating Kubernetes objects")
+        self.unit.status = MaintenanceStatus("Instantiating Kubernetes objects")
+        _, manifests_str = self._render_manifests()
+
+        self.logger.info("Applying manifests")
+        subprocess.run(["./kubectl", "apply", "-f-"], input=manifests_str.encode("utf-8"), check=True)
+
+        # TODO: Encapsulate this to reuse in update-status
+        self.logger.info("Waiting for installed Kubernetes objects to be operational")
+        attempts = 0
+        running = False
+        max_attempts = 20
+        while (attempts < max_attempts) and (running is False):
+            self.logger.info(f"validation attempt {attempts}")
+            self.logger.info(f"polling statefulset")
+            try:
+                running = validate_statefulset(name="metacontroller", namespace=self.model.name)
+                self.logger.info(f"found statefulset running = {running}")
+            except kubernetes.client.exceptions.ApiException:
+                self.logger.info(f"got ApiException when looking for statefulset (likely does not exist)")
+
+            # TODO: Add checks for other CRDs/services/etc (or, something generic that runs off the manifest)
+
+            # TODO: Sleep on wins?
+            attempts += 1
+            time.sleep(10)
+
+        self.logger.info("Done waiting for objects")
+
+        self.logger.info("Manifests application complete")
+        self.unit.status = ActiveStatus()
+
+    def _render_manifests(self) -> (list, str):
+        # Load and render all templates
+        self.logger.info(f"Rendering templates from {self.manifest_file_root}")
+        jinja_env = Environment(loader=FileSystemLoader(self.manifest_file_root))
+        manifests = []
+        for f in self._get_manifest_files():
+            self.logger.info(f"Rendering template {f}")
+            f = Path(f).relative_to(self.manifest_file_root)
+            template = jinja_env.get_template(str(f))
+            manifests.append(
+                template.render(
+                    namespace=self.model.name,
+                    image="metacontroller/metacontroller:v0.3.0"
+                )
+            )
+
+        # Combine templates into a single string
+        manifests_str = "\n---\n".join(manifests)
+
+        logging.info(f"rendered manifests_str = {manifests_str}")
+
+        return manifests, manifests_str
+
+    @property
+    def manifest_file_root(self):
+        return self._manifests_file_root
+
+    @manifest_file_root.setter
+    def manifest_file_root(self, value):
+        self._manifests_file_root = Path(value)
+
+    def _get_manifest_files(self) -> list:
+        """Returns a list of all manifest files"""
+        return glob.glob(str(self.manifest_file_root / "*.yaml"))
+
+
+def init_app_client(app_client=None):
+    if app_client is None:
+        config.load_incluster_config()
+        app_client = client.AppsV1Api()
+    return app_client
+
+
+def validate_statefulset(name, namespace, app_client=None):
+    """Returns true if a statefulset has its desired number of ready replicas, else False
+
+    Raises a kubernetes.client.exceptions.ApiException from read_namespaced_stateful_set()
+    if the object cannot be found
+    """
+    app_client = init_app_client(app_client)
+    ss = app_client.read_namespaced_stateful_set(name, namespace)
+    if ss.status.ready_replicas == ss.spec.replicas:
+        return True
+    else:
+        return False
+
+
+if __name__ == "__main__":
+    main(MetacontrollerOperatorCharm)

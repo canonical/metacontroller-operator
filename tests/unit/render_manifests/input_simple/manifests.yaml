@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: metacontroller
+  namespace: {{ namespace }}
+spec:
+  template:
+    spec:
+      containers:
+        - name: metacontroller
+          image: {{ image }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: metacontroller
+  namespace: {{ namespace }}
