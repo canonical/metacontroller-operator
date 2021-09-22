@@ -48,28 +48,23 @@ class MetacontrollerOperatorCharm(CharmBase):
 
         # TODO: Encapsulate this to reuse in update-status
         self.logger.info("Waiting for installed Kubernetes objects to be operational")
-        attempts = 0
-        running = False
         max_attempts = 20
-        while (attempts < max_attempts) and (running is False):
-            self.logger.info(f"validation attempt {attempts}")
-            self.logger.info(f"polling statefulset")
-            try:
-                running = validate_statefulset(name="metacontroller", namespace=self.model.name)
-                self.logger.info(f"found statefulset running = {running}")
-            except kubernetes.client.exceptions.ApiException:
-                self.logger.info(f"got ApiException when looking for statefulset (likely does not exist)")
+        for attempt in range(max_attempts):
+            self.logger.info(f"validation attempt {attempt}/{max_attempts}")
+            running = self._check_deployed_resources()
 
-            # TODO: Add checks for other CRDs/services/etc (or, something generic that runs off the manifest)
-
-            if not running:
-                attempts += 1
-                time.sleep(10)
-
-        self.logger.info("Done waiting for objects")
-
-        self.logger.info("Manifests application complete")
-        self.unit.status = ActiveStatus()
+            if running is True:
+                self.logger.info("Resources detected as running")
+                self.logger.info("Install successful")
+                self.unit.status = ActiveStatus()
+                return
+            else:
+                sleeptime = 10
+                self.logger.info(f"Sleeping {sleeptime}s")
+                time.sleep(sleeptime)
+        else:
+            self.unit.status = MaintenanceStatus("Some kubernetes resources missing/not ready")
+            return
 
     def _remove(self, _):
         """Remove charm"""
@@ -112,6 +107,28 @@ class MetacontrollerOperatorCharm(CharmBase):
         logging.info(f"rendered manifests_str = {manifests_str}")
 
         return manifests, manifests_str
+
+    def _check_deployed_resources(self, manifests=None):
+        """Check the status of all deployed resources, returning True if ok"""
+        # TODO: Add checks for other CRDs/services/etc (or, something generic that runs off the manifest)
+        # TODO: Check all resources automatically based on the manifest
+        if manifests is not None:
+            raise NotImplementedError("...")
+        # if manifests is None:
+        #     manifests = self._render_manifests()
+
+        resource_type = "statefulset"
+        name = "metacontroller"
+        namespace = self.model.name
+        self.logger.info(f"Checking {resource_type} {name} in {namespace}")
+        try:
+            running = validate_statefulset(name=name, namespace=namespace)
+            self.logger.info(f"found statefulset running = {running}")
+        except kubernetes.client.exceptions.ApiException:
+            self.logger.info(f"got ApiException when looking for statefulset (likely does not exist)")
+            running = False
+
+        return running
 
     @property
     def manifest_file_root(self):
