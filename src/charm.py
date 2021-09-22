@@ -9,11 +9,11 @@ from pathlib import Path
 
 from kubernetes import client, config
 import kubernetes.client.exceptions
-from oci_image import OCIImageResource, OCIImageResourceError
+from oci_image import OCIImageResource
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
-from ops.model import ActiveStatus, MaintenanceStatus
+from ops.model import ActiveStatus, WaitingStatus, MaintenanceStatus
 
 
 class MetacontrollerOperatorCharm(CharmBase):
@@ -23,13 +23,20 @@ class MetacontrollerOperatorCharm(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
+
+        if not self.unit.is_leader():
+            self.model.unit.status = WaitingStatus("Waiting for leadership")
+            return
+
         self.framework.observe(self.on.noop_pebble_ready, self._noop_pebble_ready)
         self.framework.observe(self.on.install, self._install)
         self.framework.observe(self.on.remove, self._remove)
         self.framework.observe(self.on.update_status, self._update_status)
         # self.framework.observe(self.on.config_changed, self._reconcile)
 
+        self.x = 1
         self.logger = logging.getLogger(__name__)
+        self.y = 1
         # TODO: Fix file imports and move ./src/files back to ./files
         self._manifests_file_root = None
         self.manifest_file_root = "./src/files/manifests/"
@@ -51,8 +58,10 @@ class MetacontrollerOperatorCharm(CharmBase):
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
         )
-        self.logger.info(f"kubectl returned with code '{completed_process.returncode}'"
-                         f" and output {completed_process.stdout}")
+        self.logger.info(
+            f"kubectl returned with code '{completed_process.returncode}'"
+            f" and output {completed_process.stdout}"
+        )
 
         self.logger.info("Waiting for installed Kubernetes objects to be operational")
         max_attempts = 20
@@ -70,11 +79,13 @@ class MetacontrollerOperatorCharm(CharmBase):
                 self.logger.info(f"Sleeping {sleeptime}s")
                 time.sleep(sleeptime)
         else:
-            self.unit.status = MaintenanceStatus("Some kubernetes resources missing/not ready")
+            self.unit.status = MaintenanceStatus(
+                "Some kubernetes resources missing/not ready"
+            )
             return
 
     def _update_status(self, event):
-        self.logger.info(f"Comparing current state to desired state")
+        self.logger.info("Comparing current state to desired state")
 
         running = self._check_deployed_resources()
         if running is True:
@@ -82,8 +93,12 @@ class MetacontrollerOperatorCharm(CharmBase):
             self.unit.status = ActiveStatus()
             return
         else:
-            self.logger.info("Resources are missing.  Triggering install to reconcile resources")
-            self.unit.status = MaintenanceStatus("Missing kubernetes resources detected - reinstalling")
+            self.logger.info(
+                "Resources are missing.  Triggering install to reconcile resources"
+            )
+            self.unit.status = MaintenanceStatus(
+                "Missing kubernetes resources detected - reinstalling"
+            )
             self._install(event)
             return
 
@@ -103,8 +118,10 @@ class MetacontrollerOperatorCharm(CharmBase):
         if completed_process.returncode == 0:
             self.logger.info("Kubernetes objects removed using kubectl")
         else:
-            self.logger.error(f"Unable to remove kubernetes objects - there may be orphaned resources."
-                              f"  kubectl exited with '{completed_process.stdout}'")
+            self.logger.error(
+                f"Unable to remove kubernetes objects - there may be orphaned resources."
+                f"  kubectl exited with '{completed_process.stdout}'"
+            )
 
     def _render_manifests(self) -> (list, str):
         # Load and render all templates
@@ -118,7 +135,7 @@ class MetacontrollerOperatorCharm(CharmBase):
             manifests.append(
                 template.render(
                     namespace=self.model.name,
-                    image="metacontroller/metacontroller:v0.3.0"
+                    image="metacontroller/metacontroller:v0.3.0",
                 )
             )
 
@@ -131,8 +148,8 @@ class MetacontrollerOperatorCharm(CharmBase):
 
     def _check_deployed_resources(self, manifests=None):
         """Check the status of all deployed resources, returning True if ok"""
-        # TODO: Add checks for other CRDs/services/etc (or, something generic that runs off the manifest)
-        # TODO: Check all resources automatically based on the manifest
+        # TODO: Add checks for other CRDs/services/etc
+        # TODO: ideally check all resources automatically based on the manifest
         if manifests is not None:
             raise NotImplementedError("...")
         # if manifests is None:
@@ -146,7 +163,9 @@ class MetacontrollerOperatorCharm(CharmBase):
             running = validate_statefulset(name=name, namespace=namespace)
             self.logger.info(f"found statefulset running = {running}")
         except kubernetes.client.exceptions.ApiException:
-            self.logger.info(f"got ApiException when looking for statefulset (likely does not exist)")
+            self.logger.info(
+                "got ApiException when looking for statefulset (likely does not exist)"
+            )
             running = False
 
         return running

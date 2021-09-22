@@ -25,12 +25,11 @@ async def test_build_and_deploy(ops_test: OpsTest):
     logger.info(f"Deploying charm {APP_NAME} using resources '{resources}'")
 
     await ops_test.model.deploy(
-        entity_url=built_charm_path,
-        application_name=APP_NAME,
-        resources=resources
+        entity_url=built_charm_path, application_name=APP_NAME, resources=resources
     )
 
-    # TODO: There are more complete ways to do this - see other charms.  This passes at incorrect times.
+    # TODO: Replace this with a more accurate way of testing for success.
+    #  This passes sometimes when model is not ok
     await ops_test.model.wait_for_idle(timeout=60 * 60)
 
     # TODO: confirm it actually deployed correctly

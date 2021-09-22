@@ -8,7 +8,7 @@ spec:
     spec:
       containers:
         - name: metacontroller
-          image: test-image
+          image: metacontroller/metacontroller:v0.3.0
 ---
 apiVersion: v1
 kind: ServiceAccount
