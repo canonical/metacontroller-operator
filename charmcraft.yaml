@@ -19,6 +19,7 @@ parts:
       chmod +x kubectl
     build-packages:
       - curl
-#  charm:
+  charm:
+    charm-python-packages: [setuptools, pip]  # Fixes jinja install during pack
 #    prime:
 #      - ./files/manifests/*.yaml
