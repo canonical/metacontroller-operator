@@ -22,8 +22,6 @@ from ops.model import ActiveStatus, WaitingStatus, MaintenanceStatus
 class MetacontrollerOperatorCharm(CharmBase):
     """Charm the Metacontroller"""
 
-    _stored = StoredState()
-
     def __init__(self, *args):
         super().__init__(*args)
 

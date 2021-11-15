@@ -15,10 +15,10 @@ jobs:
     - uses: actions/checkout@v2
     - name: Install dependencies
       run: |
+        set -eux
         sudo apt update
         sudo apt install tox
-    - name: Lint code
-      run: tox -vve lint
+    - name: tox -vve lint
 
   unit:
     name: Unit Tests
@@ -27,8 +27,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Install dependencies
         run: pip install tox
-      - name: Run unit tests
-        run: tox -vve unit
+      - run: tox -vve unit
 
   integration:
     name: Integration Tests
@@ -39,15 +38,10 @@ jobs:
       uses: charmed-kubernetes/actions-operator@main
       with:
         provider: microk8s
-
-    # TODO: Remove once the actions-operator does this automatically
-    - name: Configure kubectl
-      run: |
-        sg microk8s -c "microk8s config > ~/.kube/config"
+        charmcraft-channel: latest/candidate
 
     - name: Test
-      run: |
-        sg microk8s -c "tox -vve integration -- --model testing"
+      run: sg microk8s -c "tox -vve integration -- --model testing"
 
       # On failure, capture debugging resources
     - name: Get all
