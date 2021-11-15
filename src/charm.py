@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright 2021 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 import glob
 import subprocess
 import time
@@ -34,9 +37,8 @@ class MetacontrollerOperatorCharm(CharmBase):
         self.framework.observe(self.on.update_status, self._update_status)
         # self.framework.observe(self.on.config_changed, self._reconcile)
 
-        self.x = 1
         self.logger = logging.getLogger(__name__)
-        self.y = 1
+
         # TODO: Fix file imports and move ./src/files back to ./files
         self._manifests_file_root = None
         self.manifest_file_root = "./src/files/manifests/"
@@ -104,7 +106,6 @@ class MetacontrollerOperatorCharm(CharmBase):
 
     def _remove(self, _):
         """Remove charm"""
-        # TODO: How should we test this in our integration tests?
         # Should I set a status or does Juju set one?
         self.logger.info("Removing kubernetes objects")
 

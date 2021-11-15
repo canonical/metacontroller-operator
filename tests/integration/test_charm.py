@@ -1,3 +1,6 @@
+# Copyright 2021 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 import logging
 from pathlib import Path
 import pytest
@@ -33,3 +36,5 @@ async def test_build_and_deploy(ops_test: OpsTest):
     await ops_test.model.wait_for_idle(timeout=60 * 60)
 
     # TODO: confirm it actually deployed correctly
+
+# TODO: Add test for charm removal
