@@ -34,11 +34,16 @@ async def test_build_and_deploy(ops_test: OpsTest):
         trust=True,
     )
 
-    # TODO: Replace this with a more accurate way of testing for success.
-    #  This passes sometimes when model is not ok
-    await ops_test.model.wait_for_idle(timeout=60 * 60)
-
-    # TODO: confirm it actually deployed correctly
+    apps = [APP_NAME]
+    await ops_test.model.wait_for_idle(
+        apps=apps, status="active", raise_on_blocked=True, timeout=300
+    )
+    for app_name in apps:
+        for i_unit, unit in enumerate(ops_test.model.applications[app_name].units):
+            assert (
+                unit.workload_status == "active"
+            ), f"Application {app_name}.Unit {i_unit}.workload_status != active"
+    assert ops_test.model.applications[APP_NAME].units[0].workload_status == "active"
 
 
 # TODO: Add test for charm removal
