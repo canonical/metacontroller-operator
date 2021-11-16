@@ -21,14 +21,17 @@ async def test_build_and_deploy(ops_test: OpsTest):
     logger.info(f"Built charm {built_charm_path}")
 
     resources = {}
-    for resource_name, resource_data in METADATA["resources"].items():
+    for resource_name, resource_data in METADATA.get("resources", {}).items():
         image_path = resource_data["upstream-source"]
         resources[resource_name] = image_path
 
     logger.info(f"Deploying charm {APP_NAME} using resources '{resources}'")
 
     await ops_test.model.deploy(
-        entity_url=built_charm_path, application_name=APP_NAME, resources=resources
+        entity_url=built_charm_path,
+        application_name=APP_NAME,
+        resources=resources,
+        trust=True,
     )
 
     # TODO: Replace this with a more accurate way of testing for success.
@@ -37,4 +40,7 @@ async def test_build_and_deploy(ops_test: OpsTest):
 
     # TODO: confirm it actually deployed correctly
 
+
 # TODO: Add test for charm removal
+# TODO: Add test that USES metacontroller for something (act on a namespace
+#  given particular metadata, similar to kfp?)

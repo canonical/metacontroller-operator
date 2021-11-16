@@ -14,7 +14,6 @@ from kubernetes import client, config
 import kubernetes.client.exceptions
 from oci_image import OCIImageResource
 from ops.charm import CharmBase
-from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, WaitingStatus, MaintenanceStatus
 
@@ -29,7 +28,6 @@ class MetacontrollerOperatorCharm(CharmBase):
             self.model.unit.status = WaitingStatus("Waiting for leadership")
             return
 
-        self.framework.observe(self.on.noop_pebble_ready, self._noop_pebble_ready)
         self.framework.observe(self.on.install, self._install)
         self.framework.observe(self.on.remove, self._remove)
         self.framework.observe(self.on.update_status, self._update_status)
@@ -41,9 +39,6 @@ class MetacontrollerOperatorCharm(CharmBase):
         self._manifests_file_root = None
         self.manifest_file_root = "./src/files/manifests/"
         self.image = OCIImageResource(self, "oci-image")
-
-    def _noop_pebble_ready(self, _):
-        self.logger.info("noop_pebble_ready fired")
 
     def _install(self, event):
         self.logger.info("Installing by instantiating Kubernetes objects")

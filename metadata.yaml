@@ -6,17 +6,3 @@ description: |
 
   https://github.com/metacontroller/metacontroller
 summary: An add-on for Kubernetes to write and deploy custom controllers from simple scripts
-
-# Do I need this at all?  This would be if I'm maintaining things via pebble?
-containers:
-  noop:
-    resource: noop
-
-resources:
-  noop:
-    type: oci-image
-    description: ''
-    upstream-source: alpine
-
-# TODO: I don't really need this oci-image, everything gets downloaded by k8s.  This is really a config arg.  Will refactor
-# TODO: Try with recent metacontroller.  This is 3 years old...  Kubeflow Pipelines has a merged change with update
