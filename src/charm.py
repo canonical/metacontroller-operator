@@ -3,7 +3,6 @@
 # See LICENSE file for licensing details.
 
 import glob
-import subprocess
 import time
 from typing import Optional
 
@@ -15,7 +14,7 @@ from kubernetes import client, config
 import kubernetes.client.exceptions
 from ops.charm import CharmBase
 from ops.main import main
-from ops.model import ActiveStatus, WaitingStatus, MaintenanceStatus
+from ops.model import ActiveStatus, WaitingStatus, MaintenanceStatus, BlockedStatus
 
 import lightkube
 from lightkube import codecs
@@ -78,7 +77,7 @@ class MetacontrollerOperatorCharm(CharmBase):
                 self.logger.info(f"Sleeping {sleeptime}s")
                 time.sleep(sleeptime)
         else:
-            self.unit.status = MaintenanceStatus(
+            self.unit.status = BlockedStatus(
                 "Some kubernetes resources missing/not ready"
             )
             return
@@ -108,17 +107,23 @@ class MetacontrollerOperatorCharm(CharmBase):
     def _create_crds(self, if_exists=None):
         self.logger.info("Applying manifests for CRDs")
         objs = self._render_crds()
-        create_all_lightkube_objects(objs, if_exists=if_exists, lightkube_client=self.lightkube_client)
+        create_all_lightkube_objects(
+            objs, if_exists=if_exists, lightkube_client=self.lightkube_client
+        )
 
     def _create_rbac(self, if_exists=None):
         self.logger.info("Applying manifests for RBAC")
         objs = self._render_rbac()
-        create_all_lightkube_objects(objs, if_exists=if_exists, lightkube_client=self.lightkube_client)
+        create_all_lightkube_objects(
+            objs, if_exists=if_exists, lightkube_client=self.lightkube_client
+        )
 
     def _create_controller(self, if_exists=None):
         self.logger.info("Applying manifests for controller")
         objs = self._render_controller()
-        create_all_lightkube_objects(objs, if_exists=if_exists, lightkube_client=self.lightkube_client)
+        create_all_lightkube_objects(
+            objs, if_exists=if_exists, lightkube_client=self.lightkube_client
+        )
 
     def _render_yaml(self, yaml_filename: [str, Path]):
         """Returns a list of lightkube k8s objects for a yaml file, rendered in charm context"""
