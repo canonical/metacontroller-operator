@@ -20,7 +20,7 @@ spec:
       serviceAccountName: metacontroller
       containers:
       - name: metacontroller
-        image: {{ image }}
+        image: {{ metacontroller-image }}
         command: ["/usr/bin/metacontroller"]
         args:
         - -v=4

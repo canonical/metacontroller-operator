@@ -108,23 +108,23 @@ class MetacontrollerOperatorCharm(CharmBase):
     def _create_crds(self, if_exists=None):
         self.logger.info("Applying manifests for CRDs")
         objs = self._render_crds()
-        create_all_lightkube_objects(objs, if_exists=if_exists)
+        create_all_lightkube_objects(objs, if_exists=if_exists, lightkube_client=self.lightkube_client)
 
     def _create_rbac(self, if_exists=None):
         self.logger.info("Applying manifests for RBAC")
         objs = self._render_rbac()
-        create_all_lightkube_objects(objs, if_exists=if_exists)
+        create_all_lightkube_objects(objs, if_exists=if_exists, lightkube_client=self.lightkube_client)
 
     def _create_controller(self, if_exists=None):
         self.logger.info("Applying manifests for controller")
         objs = self._render_controller()
-        create_all_lightkube_objects(objs, if_exists=if_exists)
+        create_all_lightkube_objects(objs, if_exists=if_exists, lightkube_client=self.lightkube_client)
 
     def _render_yaml(self, yaml_filename: [str, Path]):
         """Returns a list of lightkube k8s objects for a yaml file, rendered in charm context"""
         context = {
             "namespace": self.model.name,
-            "image": METACONTROLLER_IMAGE,
+            "metacontroller_image": METACONTROLLER_IMAGE,
         }
         with open(self._manifests_file_root / yaml_filename) as f:
             return codecs.load_all_yaml(f, context=context)
@@ -208,6 +208,10 @@ class MetacontrollerOperatorCharm(CharmBase):
             self._lightkube_client = lightkube.Client()
         return self._lightkube_client
 
+    @lightkube_client.setter
+    def lightkube_client(self, client):
+        self._lightkube_client = client
+
 
 def init_app_client(app_client=None):
     if app_client is None:
@@ -240,15 +244,6 @@ def _validate_if_exists(if_exists):
         raise ValueError(
             f"Invalid value for if_exists '{if_exists}'.  Must be one of {ALLOWED_IF_EXISTS}"
         )
-
-
-def _safe_load_file_to_text(filename: str):
-    """Returns the contents of filename if it is an existing file, else it returns filename"""
-    try:
-        text = Path(filename).read_text()
-    except FileNotFoundError:
-        text = filename
-    return text
 
 
 def create_all_lightkube_objects(
