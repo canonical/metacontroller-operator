@@ -16,6 +16,7 @@ from ops.model import ActiveStatus, WaitingStatus, MaintenanceStatus, BlockedSta
 import lightkube
 from lightkube import codecs
 from lightkube.resources.apps_v1 import StatefulSet
+from lightkube.core.exceptions import ApiError
 
 
 METACONTROLLER_IMAGE = "metacontroller/metacontroller:v0.3.0"
@@ -51,7 +52,22 @@ class MetacontrollerOperatorCharm(CharmBase):
         # TODO: catch error when this fails due to permissions and set appropriate "we aren't
         #  trusted" blocked status
         # create rbac
-        self._create_rbac()
+        try:
+            self._create_rbac()
+        except ApiError as e:
+            # Handle forbidden error as this likely means we don't have --trust
+            if e.status.code == 403:
+                self.logger.error(
+                    "Received Forbidden (403) error from lightkube when creating required RBAC.  "
+                    "This may be due to the charm lacking permissions to create cluster-scoped "
+                    "roles and resources.  Charm must be deployed with `--trust`"
+                )
+                self.unit.status = BlockedStatus(
+                    "Cannot create required RBAC.  Charm may not have `--trust`"
+                )
+                return
+            else:
+                raise e
 
         # Create crds
         self._create_crds()
