@@ -160,7 +160,8 @@ def mock_resources_ready():
     (
         (fake_get_k8s_obj_always_successful, "mock_resources_ready", True),
         (fake_get_k8s_obj_crds_fail, "mock_resources_ready", False),
-        # (fake_get_k8s_statefulsets_have_no_replicas, mock_resources_not_ready, False),  # TODO: Add when ss check enabled
+        # (fake_get_k8s_statefulsets_have_no_replicas, mock_resources_not_ready,
+        # False),  # TODO: Add when ss check enabled
     ),
 )
 def test_check_deployed_resources(

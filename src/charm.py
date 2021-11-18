@@ -10,7 +10,6 @@ import logging
 from pathlib import Path
 
 from kubernetes import client, config
-import kubernetes.client.exceptions
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus, WaitingStatus, MaintenanceStatus, BlockedStatus
