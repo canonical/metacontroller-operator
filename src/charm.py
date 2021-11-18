@@ -6,7 +6,6 @@ import glob
 import time
 from typing import Optional
 
-from jinja2 import Environment, FileSystemLoader
 import logging
 from pathlib import Path
 
@@ -146,54 +145,29 @@ class MetacontrollerOperatorCharm(CharmBase):
         """Returns a list of lightkube k8s objects for the controller, rendered in charm context"""
         return self._render_yaml("metacontroller.yaml")
 
-    def _render_manifests(self) -> (list, str):
-        raise Exception("TODO: Remove this")
-        # Load and render all templates
-        self.logger.info(f"Rendering templates from {self.manifest_file_root}")
-        jinja_env = Environment(loader=FileSystemLoader(self.manifest_file_root))
-        manifests = []
-        for f in self._get_manifest_files():
-            self.logger.info(f"Rendering template {f}")
-            f = Path(f).relative_to(self.manifest_file_root)
-            template = jinja_env.get_template(str(f))
-            manifests.append(
-                template.render(
-                    namespace=self.model.name,
-                    image="metacontroller/metacontroller:v0.3.0",
-                )
-            )
+    def _render_all_resources(self):
+        """Returns a list of lightkube8s objects for all resources, rendered in charm context"""
+        return self._render_rbac() + self._render_crds() + self._render_controller()
 
-        # Combine templates into a single string
-        manifests_str = "\n---\n".join(manifests)
-
-        logging.info(f"rendered manifests_str = {manifests_str}")
-
-        return manifests, manifests_str
-
-    def _check_deployed_resources(self, manifests=None):
+    def _check_deployed_resources(self):
         """Check the status of all deployed resources, returning True if ok"""
-        # TODO: Add checks for other CRDs/services/etc
-        # TODO: ideally check all resources automatically based on the manifest
-        # TODO: Use lightkube here
-        if manifests is not None:
-            raise NotImplementedError("...")
-        # if manifests is None:
-        #     manifests = self._render_manifests()
+        expected_resources = self._render_all_resources()
+        found_resources = [None] * len(expected_resources)
+        for i, resource in enumerate(expected_resources):
+            self.logger.info(f"Checking for '{resource.metadata}'")
+            try:
+                found_resources[i] = get_k8s_obj(resource, self.lightkube_client)
+            except lightkube.core.exceptions.ApiError:
+                self.logger.info(
+                    f"Cannot find k8s object for metadata '{resource.metadata}'"
+                )
 
-        resource_type = "statefulset"
-        name = "metacontroller"
-        namespace = self.model.name
-        self.logger.info(f"Checking {resource_type} {name} in {namespace}")
-        try:
-            running = validate_statefulset(name=name, namespace=namespace)
-            self.logger.info(f"found statefulset running = {running}")
-        except kubernetes.client.exceptions.ApiException:
-            self.logger.info(
-                "got ApiException when looking for statefulset (likely does not exist)"
-            )
-            running = False
+        found_all_resources = all(found_resources)
 
-        return running
+        # TODO: Assert the statefulset/deployments/pods are ready/have replicas.
+        #  Might be able to use lightkube objects status subresource?
+
+        return found_all_resources
 
     @property
     def manifest_file_root(self):
@@ -300,6 +274,13 @@ def create_all_lightkube_objects(
                         "This should not be reached.  This is likely due to an "
                         "uncaught, invalid value for if_exists"
                     )
+
+
+def get_k8s_obj(obj, client=None):
+    if not client:
+        client = lightkube.Client()
+
+    return client.get(type(obj), obj.metadata.name, namespace=obj.metadata.namespace)
 
 
 if __name__ == "__main__":
