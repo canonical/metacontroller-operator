@@ -10,6 +10,7 @@ import lightkube.codecs
 from lightkube.resources.apps_v1 import Deployment, StatefulSet
 from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
 from lightkube.models.meta_v1 import ObjectMeta
+from lightkube.models.apps_v1 import StatefulSetSpec, StatefulSetStatus
 from ops.model import WaitingStatus, ActiveStatus, BlockedStatus, MaintenanceStatus
 from ops.testing import Harness
 import pytest
@@ -148,20 +149,40 @@ def fake_get_k8s_obj_crds_fail(obj, _):
 
 @pytest.fixture()
 def mock_resources_ready():
-    # TODO: When testing stateful sets for scale, add scale to this statefulset
+    """List of lightkube resources that are ok"""
     return [
-        StatefulSet(metadata=ObjectMeta(name="ss1", namespace="namespace")),
+        StatefulSet(
+            metadata=ObjectMeta(name="ss1", namespace="namespace"),
+            spec=StatefulSetSpec(replicas=3, selector="", serviceName="", template=""),
+            status=StatefulSetStatus(replicas=3, readyReplicas=3),
+        ),
         CustomResourceDefinition(metadata=ObjectMeta(name="crd1"), spec={}),
+    ]
+
+
+@pytest.fixture()
+def mock_resources_ss_not_ready():
+    """
+    List of lightkube resources that has a StatefulSet that does not have all replicas available
+    """
+    return [
+        StatefulSet(
+            metadata=ObjectMeta(name="ss1", namespace="namespace"),
+            spec=StatefulSetSpec(replicas=3, selector="", serviceName="", template=""),
+            status=StatefulSetStatus(replicas=0, readyReplicas=0),
+        ),
     ]
 
 
 @pytest.mark.parametrize(
     "mock_get_k8s_obj,mock_resources_fixture,expected_are_resources_ok",
     (
+        # Test where objects exist in k8s
         (fake_get_k8s_obj_always_successful, "mock_resources_ready", True),
+        # Test where objects do not exist in k8s
         (fake_get_k8s_obj_crds_fail, "mock_resources_ready", False),
-        # (fake_get_k8s_statefulsets_have_no_replicas, mock_resources_not_ready,
-        # False),  # TODO: Add when ss check enabled
+        # Test with StatefulSet that does not have all replicas
+        (fake_get_k8s_obj_always_successful, "mock_resources_ss_not_ready", False),
     ),
 )
 def test_check_deployed_resources(

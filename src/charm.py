@@ -9,13 +9,13 @@ from typing import Optional
 import logging
 from pathlib import Path
 
-from kubernetes import client, config
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus, WaitingStatus, MaintenanceStatus, BlockedStatus
 
 import lightkube
 from lightkube import codecs
+from lightkube.resources.apps_v1 import StatefulSet
 
 
 METACONTROLLER_IMAGE = "metacontroller/metacontroller:v0.3.0"
@@ -160,13 +160,11 @@ class MetacontrollerOperatorCharm(CharmBase):
                 self.logger.info(
                     f"Cannot find k8s object for metadata '{resource.metadata}'"
                 )
-
         found_all_resources = all(found_resources)
 
-        # TODO: Assert the statefulset/deployments/pods are ready/have replicas.
-        #  Might be able to use lightkube objects status subresource?
+        statefulset_ok = validate_statefulsets(found_resources, self.logger)
 
-        return found_all_resources
+        return found_all_resources and statefulset_ok
 
     @property
     def manifest_file_root(self):
@@ -191,25 +189,26 @@ class MetacontrollerOperatorCharm(CharmBase):
         self._lightkube_client = client
 
 
-def init_app_client(app_client=None):
-    if app_client is None:
-        config.load_incluster_config()
-        app_client = client.AppsV1Api()
-    return app_client
+def validate_statefulsets(objs, logger=None):
+    """Returns True if all StatefulSets in objs have the expected number of readyReplicas else False
 
-
-def validate_statefulset(name, namespace, app_client=None):
-    """Returns true if a statefulset has its desired number of ready replicas, else False
-
-    Raises a kubernetes.client.exceptions.ApiException from read_namespaced_stateful_set()
-    if the object cannot be found
+    Optionally emits a message to logger for any StatefulSets that do not have their desired number
+    of replicas
     """
-    app_client = init_app_client(app_client)
-    ss = app_client.read_namespaced_stateful_set(name, namespace)
-    if ss.status.ready_replicas == ss.spec.replicas:
-        return True
-    else:
-        return False
+    statefulset_not_ok = False
+    for obj in objs:
+        if isinstance(obj, StatefulSet):
+            readyReplicas = obj.status.readyReplicas
+            replicas_expected = obj.spec.replicas
+            if readyReplicas != replicas_expected:
+                statefulset_not_ok = True
+                if logger:
+                    logger.info(
+                        f"StatefulSet {obj.metadata.name} in namespace "
+                        f"{obj.metadata.namespace} has {readyReplicas} readyReplicas, "
+                        f"expected {replicas_expected}"
+                    )
+    return not statefulset_not_ok
 
 
 ALLOWED_IF_EXISTS = (None, "replace", "patch")
