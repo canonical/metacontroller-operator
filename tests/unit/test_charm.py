@@ -36,16 +36,17 @@ def test_not_leader(harness):
     assert harness.charm.model.unit.status == WaitingStatus("Waiting for leadership")
 
 
-def test_render_yaml(harness_with_charm):
-    manifests_root = Path("./tests/unit/render_yaml/")
+def test_render_resource(harness_with_charm):
+    manifests_root = Path("./tests/unit/render_resource/")
     unrendered_yaml_file = "simple_manifest_input.yaml"
     expected_yaml_file = "simple_manifest_result.yaml"
     harness = harness_with_charm
     harness.charm.manifest_file_root = manifests_root
+    harness.charm._resource_files = {"test_yaml": unrendered_yaml_file}
 
     assert harness.charm.manifest_file_root == Path(manifests_root)
-    objs = harness.charm._render_yaml(unrendered_yaml_file)
 
+    objs = harness.charm._render_resource("test_yaml")
     rendered_yaml_expected = (
         Path(manifests_root / expected_yaml_file).read_text().strip()
     )
@@ -60,7 +61,7 @@ def test_create_controller(harness_with_charm, mocker):
         StatefulSet(metadata=ObjectMeta(name="test-deployment", namespace=namespace)),
     ]
     mocker.patch(
-        "charm.MetacontrollerOperatorCharm._render_controller",
+        "charm.MetacontrollerOperatorCharm._render_resource",
         return_value=mocked_render_controller_return,
     )
 
@@ -72,7 +73,7 @@ def test_create_controller(harness_with_charm, mocker):
     harness = harness_with_charm
     harness.charm.lightkube_client = mocked_lightkube_client
 
-    harness.charm._create_controller()
+    harness.charm._create_resource("dummy-name")
     mocked_lightkube_client.assert_has_calls(mocked_lightkube_client_expected_calls)
 
 
@@ -84,20 +85,20 @@ def test_create_controller(harness_with_charm, mocker):
     ),
 )
 def test_install(harness_with_charm, mocker, install_succeeded, expected_status):
-    mocker.patch("charm.MetacontrollerOperatorCharm._create_rbac")
-    mocker.patch("charm.MetacontrollerOperatorCharm._create_crds")
-    mocker.patch("charm.MetacontrollerOperatorCharm._create_controller")
+    mocker.patch("charm.MetacontrollerOperatorCharm._create_resource")
     mocker.patch(
         "charm.MetacontrollerOperatorCharm._check_deployed_resources",
         return_value=install_succeeded,
     )
     mocker.patch("time.sleep")
 
+    expected_calls = [
+        mock.call(resource_name) for resource_name in ["rbac", "crds", "controller"]
+    ]
+
     harness = harness_with_charm
     harness.charm.on.install.emit()
-    harness.charm._create_rbac.assert_called_once()
-    harness.charm._create_crds.assert_called_once()
-    harness.charm._create_controller.assert_called_once()
+    harness.charm._create_resource.assert_has_calls(expected_calls)
     assert harness.charm.model.unit.status == expected_status
 
 

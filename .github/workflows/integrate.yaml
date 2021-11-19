@@ -38,6 +38,7 @@ jobs:
       uses: charmed-kubernetes/actions-operator@main
       with:
         provider: microk8s
+        channel: 1.21/stable
         charmcraft-channel: latest/candidate
 
     - name: Test
@@ -61,9 +62,9 @@ jobs:
       if: failure()
 
     - name: Get application logs
-      run: kubectl logs -n testing --tail 1000 -ljuju-app=metacontroller-operator
+      run: kubectl logs -n testing --tail 1000 -lapp.kubernetes.io/name=metacontroller-operator
       if: failure()
 
     - name: Get application operator logs
-      run: kubectl logs -n testing --tail 1000 -ljuju-operator=metacontroller-operator
+      run: kubectl logs -n testing --tail 1000 -loperator.juju.is/name=metacontroller-operator
       if: failure()

@@ -31,6 +31,11 @@ class MetacontrollerOperatorCharm(CharmBase):
         self._name = self.model.app.name
         self._namespace = self.model.name
         self._metacontroller_image = METACONTROLLER_IMAGE
+        self._resource_files = {
+            "crds": "metacontroller-crds-v1.yaml",
+            "rbac": "metacontroller-rbac.yaml",
+            "controller": "metacontroller.yaml",
+        }
 
         if not self.unit.is_leader():
             self.model.unit.status = WaitingStatus("Waiting for leadership")
@@ -58,7 +63,7 @@ class MetacontrollerOperatorCharm(CharmBase):
         #  trusted" blocked status
         # create rbac
         try:
-            self._create_rbac()
+            self._create_resource("rbac")
         except ApiError as e:
             # Handle forbidden error as this likely means we don't have --trust
             if e.status.code == 403:
@@ -76,10 +81,10 @@ class MetacontrollerOperatorCharm(CharmBase):
                 raise e
 
         # Create crds
-        self._create_crds()
+        self._create_resource("crds")
 
         # deploy the controller
-        self._create_controller()
+        self._create_resource("controller")
 
         self.logger.info("Waiting for installed Kubernetes objects to be operational")
         max_attempts = 20
@@ -124,52 +129,29 @@ class MetacontrollerOperatorCharm(CharmBase):
         """Remove charm"""
         raise NotImplementedError()
 
-    def _create_crds(self, if_exists="patch"):
-        self.logger.info("Applying manifests for CRDs")
-        objs = self._render_crds()
+    def _create_resource(self, resource_name, if_exists="patch"):
+        self.logger.info(f"Applying manifests for {resource_name}")
+        objs = self._render_resource(resource_name)
         create_all_lightkube_objects(
             objs, if_exists=if_exists, lightkube_client=self.lightkube_client
         )
 
-    def _create_rbac(self, if_exists="patch"):
-        self.logger.info("Applying manifests for RBAC")
-        objs = self._render_rbac()
-        create_all_lightkube_objects(
-            objs, if_exists=if_exists, lightkube_client=self.lightkube_client
-        )
-
-    def _create_controller(self, if_exists="patch"):
-        self.logger.info("Applying manifests for controller")
-        objs = self._render_controller()
-        create_all_lightkube_objects(
-            objs, if_exists=if_exists, lightkube_client=self.lightkube_client
-        )
-
-    def _render_yaml(self, yaml_filename: [str, Path]):
+    def _render_resource(self, yaml_name: [str, Path]):
         """Returns a list of lightkube k8s objects for a yaml file, rendered in charm context"""
         context = {
             "app_name": self._name,
             "namespace": self._namespace,
             "metacontroller_image": self._metacontroller_image,
         }
-        with open(self._manifests_file_root / yaml_filename) as f:
+        with open(self._manifests_file_root / self._resource_files[yaml_name]) as f:
             return codecs.load_all_yaml(f, context=context)
-
-    def _render_crds(self):
-        """Returns a list of lightkube k8s objects for the CRDs, rendered in charm context"""
-        return self._render_yaml("metacontroller-crds-v1.yaml")
-
-    def _render_rbac(self):
-        """Returns a list of lightkube k8s objects for the charm RBAC, rendered in charm context"""
-        return self._render_yaml("metacontroller-rbac.yaml")
-
-    def _render_controller(self):
-        """Returns a list of lightkube k8s objects for the controller, rendered in charm context"""
-        return self._render_yaml("metacontroller.yaml")
 
     def _render_all_resources(self):
         """Returns a list of lightkube8s objects for all resources, rendered in charm context"""
-        return self._render_rbac() + self._render_crds() + self._render_controller()
+        resources = []
+        for resource_name in self._resource_files:
+            resources.extend(self._render_resource(resource_name))
+        return resources
 
     def _check_deployed_resources(self):
         """Check the status of all deployed resources, returning True if ok"""
