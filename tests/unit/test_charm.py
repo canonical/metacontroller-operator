@@ -193,6 +193,10 @@ def test_check_deployed_resources(
     mock_resources_fixture,
     expected_are_resources_ok,
 ):
+    # Mock away lightkube_client so it doesn't look for/fail on kubernetes config
+    mocked_client = mocker.patch("charm.MetacontrollerOperatorCharm.lightkube_client", new_callable=mock.PropertyMock)
+    mocked_client.return_value = None
+
     mocker.patch("charm.get_k8s_obj", side_effect=mock_get_k8s_obj)
 
     # Get the value of the fixture passed as a param, otherwise it is just the fixture itself
