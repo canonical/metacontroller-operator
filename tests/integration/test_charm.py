@@ -15,7 +15,7 @@ APP_NAME = "metacontroller-operator"
 
 
 @pytest.mark.abort_on_fail
-async def test_build_and_deploy(ops_test: OpsTest):
+async def test_build_and_deploy_with_trust(ops_test: OpsTest):
     logger.info("Building charm")
     built_charm_path = await ops_test.build_charm("./")
     logger.info(f"Built charm {built_charm_path}")

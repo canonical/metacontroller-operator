@@ -28,6 +28,10 @@ class MetacontrollerOperatorCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
 
+        self._name = self.model.app.name
+        self._namespace = self.model.name
+        self._metacontroller_image = METACONTROLLER_IMAGE
+
         if not self.unit.is_leader():
             self.model.unit.status = WaitingStatus("Waiting for leadership")
             return
@@ -46,6 +50,7 @@ class MetacontrollerOperatorCharm(CharmBase):
         self._lightkube_client = None
 
     def _install(self, event):
+        """Creates k8s resources required for the charm, patching over any existing ones it finds"""
         self.logger.info("Installing by instantiating Kubernetes objects")
         self.unit.status = MaintenanceStatus("Instantiating Kubernetes objects")
 
@@ -62,6 +67,7 @@ class MetacontrollerOperatorCharm(CharmBase):
                     "This may be due to the charm lacking permissions to create cluster-scoped "
                     "roles and resources.  Charm must be deployed with `--trust`"
                 )
+                self.logger.error(f"Error received: {str(e)}")
                 self.unit.status = BlockedStatus(
                     "Cannot create required RBAC.  Charm may not have `--trust`"
                 )
@@ -118,21 +124,21 @@ class MetacontrollerOperatorCharm(CharmBase):
         """Remove charm"""
         raise NotImplementedError()
 
-    def _create_crds(self, if_exists=None):
+    def _create_crds(self, if_exists="patch"):
         self.logger.info("Applying manifests for CRDs")
         objs = self._render_crds()
         create_all_lightkube_objects(
             objs, if_exists=if_exists, lightkube_client=self.lightkube_client
         )
 
-    def _create_rbac(self, if_exists=None):
+    def _create_rbac(self, if_exists="patch"):
         self.logger.info("Applying manifests for RBAC")
         objs = self._render_rbac()
         create_all_lightkube_objects(
             objs, if_exists=if_exists, lightkube_client=self.lightkube_client
         )
 
-    def _create_controller(self, if_exists=None):
+    def _create_controller(self, if_exists="patch"):
         self.logger.info("Applying manifests for controller")
         objs = self._render_controller()
         create_all_lightkube_objects(
@@ -142,8 +148,9 @@ class MetacontrollerOperatorCharm(CharmBase):
     def _render_yaml(self, yaml_filename: [str, Path]):
         """Returns a list of lightkube k8s objects for a yaml file, rendered in charm context"""
         context = {
-            "namespace": self.model.name,
-            "metacontroller_image": METACONTROLLER_IMAGE,
+            "app_name": self._name,
+            "namespace": self._namespace,
+            "metacontroller_image": self._metacontroller_image,
         }
         with open(self._manifests_file_root / yaml_filename) as f:
             return codecs.load_all_yaml(f, context=context)
@@ -263,14 +270,16 @@ def create_all_lightkube_objects(
 
     for obj in objs:
         try:
+            if logger:
+                logger.info(f"Creating {obj.metadata.name}.")
             lightkube_client.create(obj)
         except lightkube.core.exceptions.ApiError as e:
-            if if_exists is None:
+            if e.status.code != 409 or if_exists is None:
                 raise e
             else:
                 if logger:
                     logger.info(
-                        f"Caught {e.status} when creating {obj.metadata.name}.  "
+                        f"Caught {e.status} when creating {obj.metadata.name} ({obj.metadata}).  "
                         f"Trying to {if_exists}"
                     )
                 if if_exists == "replace":

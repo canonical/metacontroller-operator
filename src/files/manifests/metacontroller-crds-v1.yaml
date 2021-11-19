@@ -5,6 +5,8 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     "api-approved.kubernetes.io": "unapproved, request not yet submitted"
+  labels:
+    app.kubernetes.io/name: {{ namespace }}-{{ app_name }}-charm
   name: compositecontrollers.metacontroller.k8s.io
 spec:
   group: metacontroller.k8s.io
@@ -251,6 +253,8 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     "api-approved.kubernetes.io": "unapproved, request not yet submitted"
+  labels:
+    app.kubernetes.io/name: {{ namespace }}-{{ app_name }}-charm
   name: controllerrevisions.metacontroller.k8s.io
 spec:
   group: metacontroller.k8s.io
@@ -313,6 +317,8 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     "api-approved.kubernetes.io": "unapproved, request not yet submitted"
+  labels:
+    app.kubernetes.io/name: {{ namespace }}-{{ app_name }}-charm
   name: decoratorcontrollers.metacontroller.k8s.io
 spec:
   group: metacontroller.k8s.io
