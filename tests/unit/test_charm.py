@@ -111,7 +111,7 @@ def test_install(
     harness = harness_with_charm
 
     # Fail fast
-    harness.charm._max_time_checking_resources = 1.5
+    harness.charm._max_time_checking_resources = 0.5
 
     harness.charm.on.install.emit()
 
@@ -254,6 +254,8 @@ def test_check_deployed_resources(
     mock_client.get.side_effect = lightkube_get_side_effect_fixture
 
     harness = harness_with_charm
+    harness.charm._lightkube_client = mock_client
+
     with expected_result:
         harness.charm._check_deployed_resources()
 
