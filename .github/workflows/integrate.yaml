@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    - cron: '0 8 * * TUE'
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install dependencies
+      run: |
+        set -eux
+        sudo apt update
+        sudo apt install tox
+    - run: tox -vve lint
+
+  unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install dependencies
+        run: pip install tox
+      - run: tox -vve unit
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup operator environment
+      uses: charmed-kubernetes/actions-operator@main
+      with:
+        provider: microk8s
+        channel: 1.21/stable
+        charmcraft-channel: latest/candidate
+
+    - name: Test
+      run: sg microk8s -c "tox -vve integration -- --model testing"
+
+      # On failure, capture debugging resources
+    - name: Get all
+      run: kubectl get all -A
+      if: failure()
+
+    - name: Describe deployments
+      run: kubectl describe deployments -A
+      if: failure()
+
+    - name: Describe replicasets
+      run: kubectl describe replicasets -A
+      if: failure()
+
+    - name: Get juju status
+      run: juju status
+      if: failure()
+
+    - name: Get application logs
+      run: kubectl logs -n testing --tail 1000 -lapp.kubernetes.io/name=metacontroller-operator
+      if: failure()
+
+    - name: Get application operator logs
+      run: kubectl logs -n testing --tail 1000 -loperator.juju.is/name=metacontroller-operator
+      if: failure()

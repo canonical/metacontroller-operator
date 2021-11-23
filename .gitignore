@@ -1,0 +1,8 @@
+venv/
+build/
+.tox/
+*.charm
+
+.coverage
+__pycache__/
+*.py[cod]

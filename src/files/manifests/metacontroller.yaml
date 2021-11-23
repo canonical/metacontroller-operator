@@ -1,0 +1,29 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ namespace }}-{{ app_name }}-charm
+  name: {{ app_name }}-charm
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ namespace }}-{{ app_name }}-charm
+  serviceName: ""
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ namespace }}-{{ app_name }}-charm
+    spec:
+      serviceAccountName: {{ app_name }}-charm
+      containers:
+      - name: metacontroller
+        image: {{ metacontroller_image }}
+        command: ["/usr/bin/metacontroller"]
+        args:
+        - -v=4
+        - --logtostderr
+        - --discovery-interval=20s
+  volumeClaimTemplates: []
