@@ -1,11 +1,12 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+from contextlib import nullcontext as does_not_raise
 import logging
 from pathlib import Path
 from unittest import mock
 
-from charm import MetacontrollerOperatorCharm
+from charm import MetacontrollerOperatorCharm, CheckFailed
 import lightkube.codecs
 from lightkube.resources.apps_v1 import Deployment, StatefulSet
 from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
@@ -37,18 +38,18 @@ def test_not_leader(harness):
 
 
 def test_render_resource(harness_with_charm):
-    manifests_root = Path("./tests/unit/render_resource/")
+    manifest_root = Path("./tests/unit/render_resource/")
     unrendered_yaml_file = "simple_manifest_input.yaml"
     expected_yaml_file = "simple_manifest_result.yaml"
     harness = harness_with_charm
-    harness.charm.manifest_file_root = manifests_root
+    harness.charm._manifest_file_root = manifest_root
     harness.charm._resource_files = {"test_yaml": unrendered_yaml_file}
 
-    assert harness.charm.manifest_file_root == Path(manifests_root)
+    assert harness.charm._manifest_file_root == Path(manifest_root)
 
     objs = harness.charm._render_resource("test_yaml")
     rendered_yaml_expected = (
-        Path(manifests_root / expected_yaml_file).read_text().strip()
+        Path(manifest_root / expected_yaml_file).read_text().strip()
     )
     assert lightkube.codecs.dump_all_yaml(objs).strip() == rendered_yaml_expected
 
@@ -77,18 +78,29 @@ def test_create_controller(harness_with_charm, mocker):
     mocked_lightkube_client.assert_has_calls(mocked_lightkube_client_expected_calls)
 
 
+def returns_true(*args, **kwargs):
+    return True
+
+
 @pytest.mark.parametrize(
-    "install_succeeded, expected_status",
+    "install_side_effect, expected_charm_status",
     (
-        (True, ActiveStatus()),
-        (False, BlockedStatus("Some kubernetes resources missing/not ready")),
+        (returns_true, ActiveStatus()),
+        (
+            CheckFailed("", BlockedStatus),
+            BlockedStatus(
+                "Some Kubernetes resources did not start correctly during install"
+            ),
+        ),
     ),
 )
-def test_install(harness_with_charm, mocker, install_succeeded, expected_status):
+def test_install(
+    harness_with_charm, mocker, install_side_effect, expected_charm_status
+):
     mocker.patch("charm.MetacontrollerOperatorCharm._create_resource")
     mocker.patch(
         "charm.MetacontrollerOperatorCharm._check_deployed_resources",
-        return_value=install_succeeded,
+        side_effect=install_side_effect,
     )
     mocker.patch("time.sleep")
 
@@ -97,17 +109,22 @@ def test_install(harness_with_charm, mocker, install_succeeded, expected_status)
     ]
 
     harness = harness_with_charm
+
+    # Fail fast
+    harness.charm._max_time_checking_resources = 1.5
+
     harness.charm.on.install.emit()
+
     harness.charm._create_resource.assert_has_calls(expected_calls)
-    assert harness.charm.model.unit.status == expected_status
+    assert harness.charm.model.unit.status == expected_charm_status
 
 
 @pytest.mark.parametrize(
-    "deployed_resources_status, expected_status, n_install_calls",
+    "check_deployed_resources_side_effect, expected_status, n_install_calls",
     (
-        (True, ActiveStatus(), 0),
+        (returns_true, ActiveStatus(), 0),
         (
-            False,
+            CheckFailed("", WaitingStatus),
             MaintenanceStatus("Missing kubernetes resources detected - reinstalling"),
             1,
         ),
@@ -116,14 +133,14 @@ def test_install(harness_with_charm, mocker, install_succeeded, expected_status)
 def test_update_status(
     harness_with_charm,
     mocker,
-    deployed_resources_status,
+    check_deployed_resources_side_effect,
     expected_status,
     n_install_calls,
 ):
     mocker.patch("charm.MetacontrollerOperatorCharm._install")
     mocker.patch(
         "charm.MetacontrollerOperatorCharm._check_deployed_resources",
-        return_value=deployed_resources_status,
+        side_effect=check_deployed_resources_side_effect,
     )
 
     harness = harness_with_charm
@@ -149,7 +166,7 @@ def fake_get_k8s_obj_crds_fail(obj, _):
 
 
 @pytest.fixture()
-def mock_resources_ready():
+def resources_that_are_ok():
     """List of lightkube resources that are ok"""
     return [
         StatefulSet(
@@ -162,7 +179,20 @@ def mock_resources_ready():
 
 
 @pytest.fixture()
-def mock_resources_ss_not_ready():
+def resources_with_apierror():
+    """List of lightkube resources that includes an exception"""
+    return [
+        StatefulSet(
+            metadata=ObjectMeta(name="ss1", namespace="namespace"),
+            spec=StatefulSetSpec(replicas=3, selector="", serviceName="", template=""),
+            status=StatefulSetStatus(replicas=3, readyReplicas=3),
+        ),
+        _FakeApiError(),
+    ]
+
+
+@pytest.fixture()
+def resources_with_unready_statefulset():
     """
     List of lightkube resources that has a StatefulSet that does not have all replicas available
     """
@@ -176,45 +206,56 @@ def mock_resources_ss_not_ready():
 
 
 @pytest.mark.parametrize(
-    "mock_get_k8s_obj,mock_resources_fixture,expected_are_resources_ok",
+    "render_all_resources_side_effect_fixture,lightkube_get_side_effect_fixture,expected_result",
     (
         # Test where objects exist in k8s
-        (fake_get_k8s_obj_always_successful, "mock_resources_ready", True),
+        ("resources_that_are_ok", "resources_that_are_ok", does_not_raise()),
         # Test where objects do not exist in k8s
-        (fake_get_k8s_obj_crds_fail, "mock_resources_ready", False),
+        (
+            "resources_that_are_ok",
+            "resources_with_apierror",
+            pytest.raises(CheckFailed),
+        ),
         # Test with StatefulSet that does not have all replicas
-        (fake_get_k8s_obj_always_successful, "mock_resources_ss_not_ready", False),
+        (
+            "resources_with_unready_statefulset",
+            "resources_with_unready_statefulset",
+            pytest.raises(CheckFailed),
+        ),
     ),
 )
 def test_check_deployed_resources(
     request,
     mocker,
     harness_with_charm,
-    mock_get_k8s_obj,
-    mock_resources_fixture,
-    expected_are_resources_ok,
+    render_all_resources_side_effect_fixture,
+    lightkube_get_side_effect_fixture,
+    expected_result,
 ):
-    # Mock away lightkube_client so it doesn't look for/fail on kubernetes config
-    mocked_client = mocker.patch(
-        "charm.MetacontrollerOperatorCharm.lightkube_client",
-        new_callable=mock.PropertyMock,
-    )
-    mocked_client.return_value = None
-
-    mocker.patch("charm.get_k8s_obj", side_effect=mock_get_k8s_obj)
-
+    # Mock _render_all_resources
     # Get the value of the fixture passed as a param, otherwise it is just the fixture itself
-    mock_resources = request.getfixturevalue(mock_resources_fixture)
+    # Resources for render_all_resources are assigned to return_value so it returns the entire list
+    # of resources in a single call
+    render_all_resources_side_effect = request.getfixturevalue(
+        render_all_resources_side_effect_fixture
+    )
     mocker.patch(
         "charm.MetacontrollerOperatorCharm._render_all_resources",
-        return_value=mock_resources,
+        return_value=render_all_resources_side_effect,
     )
 
-    harness = harness_with_charm
-    are_resources_ok = harness.charm._check_deployed_resources()
-    assert are_resources_ok == expected_are_resources_ok
+    # Mock charm's lightkube client
+    # Resources for mock of client.get are assigned to side_effect so a single resource is returned
+    # for each call
+    lightkube_get_side_effect_fixture = request.getfixturevalue(
+        lightkube_get_side_effect_fixture
+    )
+    mock_client = mock.MagicMock()
+    mock_client.get.side_effect = lightkube_get_side_effect_fixture
 
-    # TODO: Assert on the logs emitted?
+    harness = harness_with_charm
+    with expected_result:
+        harness.charm._check_deployed_resources()
 
 
 class _FakeResponse:

@@ -3,7 +3,6 @@
 # See LICENSE file for licensing details.
 
 import glob
-import time
 from typing import Optional
 
 import logging
@@ -17,6 +16,12 @@ import lightkube
 from lightkube import codecs
 from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.core.exceptions import ApiError
+from tenacity import (
+    Retrying,
+    retry_if_exception_type,
+    stop_after_delay,
+    wait_exponential,
+)
 
 
 METACONTROLLER_IMAGE = "metacontroller/metacontroller:v0.3.0"
@@ -28,15 +33,6 @@ class MetacontrollerOperatorCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
 
-        self._name = self.model.app.name
-        self._namespace = self.model.name
-        self._metacontroller_image = METACONTROLLER_IMAGE
-        self._resource_files = {
-            "crds": "metacontroller-crds-v1.yaml",
-            "rbac": "metacontroller-rbac.yaml",
-            "controller": "metacontroller.yaml",
-        }
-
         if not self.unit.is_leader():
             self.model.unit.status = WaitingStatus("Waiting for leadership")
             return
@@ -44,23 +40,29 @@ class MetacontrollerOperatorCharm(CharmBase):
         self.framework.observe(self.on.install, self._install)
         self.framework.observe(self.on.remove, self._remove)
         self.framework.observe(self.on.update_status, self._update_status)
-        # self.framework.observe(self.on.config_changed, self._reconcile)
 
-        self.logger = logging.getLogger(__name__)
+        self.logger: logging.Logger = logging.getLogger(__name__)
+
+        self._name: str = self.model.app.name
+        self._namespace: str = self.model.name
+        self._metacontroller_image: str = METACONTROLLER_IMAGE
+        self._resource_files: dict = {
+            "crds": "metacontroller-crds-v1.yaml",
+            "rbac": "metacontroller-rbac.yaml",
+            "controller": "metacontroller.yaml",
+        }
 
         # TODO: Fix file imports and move ./src/files back to ./files
-        self._manifests_file_root = None
-        self.manifest_file_root = "./src/files/manifests/"
+        self._manifest_file_root: Path = Path("./src/files/manifests/")
 
-        self._lightkube_client = None
+        self._lightkube_client: Optional[lightkube.Client] = None
+        self._max_time_checking_resources = 150
 
     def _install(self, event):
         """Creates k8s resources required for the charm, patching over any existing ones it finds"""
         self.logger.info("Installing by instantiating Kubernetes objects")
         self.unit.status = MaintenanceStatus("Instantiating Kubernetes objects")
 
-        # TODO: catch error when this fails due to permissions and set appropriate "we aren't
-        #  trusted" blocked status
         # create rbac
         try:
             self._create_resource("rbac")
@@ -80,42 +82,45 @@ class MetacontrollerOperatorCharm(CharmBase):
             else:
                 raise e
 
-        # Create crds
         self._create_resource("crds")
 
-        # deploy the controller
         self._create_resource("controller")
 
         self.logger.info("Waiting for installed Kubernetes objects to be operational")
-        max_attempts = 20
-        for attempt in range(max_attempts):
-            self.logger.info(f"validation attempt {attempt}/{max_attempts}")
-            running = self._check_deployed_resources()
 
-            if running is True:
-                self.logger.info("Resources detected as running")
-                self.logger.info("Install successful")
-                self.unit.status = ActiveStatus()
-                return
-            else:
-                sleeptime = 10
-                self.logger.info(f"Sleeping {sleeptime}s")
-                time.sleep(sleeptime)
-        else:
+        self.logger.info(
+            f"Checking status of charm deployment in Kubernetes "
+            f"(retrying for maximum {self._max_time_checking_resources}s)"
+        )
+        try:
+            for attempt in Retrying(
+                retry=retry_if_exception_type(CheckFailed),
+                stop=stop_after_delay(max_delay=self._max_time_checking_resources),
+                wait=wait_exponential(multiplier=0.1, min=0.1, max=15),
+                reraise=True,
+            ):
+                with attempt:
+                    self.logger.info(
+                        f"Trying attempt {attempt.retry_state.attempt_number}"
+                    )
+                    self._check_deployed_resources()
+        except CheckFailed:
             self.unit.status = BlockedStatus(
-                "Some kubernetes resources missing/not ready"
+                "Some Kubernetes resources did not start correctly during install"
             )
             return
+
+        self.logger.info("Resources detected as running")
+        self.logger.info("Install successful")
+        self.unit.status = ActiveStatus()
+        return
 
     def _update_status(self, event):
         self.logger.info("Comparing current state to desired state")
 
-        running = self._check_deployed_resources()
-        if running is True:
-            self.logger.info("Resources are ok.  Unit in ActiveStatus")
-            self.unit.status = ActiveStatus()
-            return
-        else:
+        try:
+            self._check_deployed_resources()
+        except CheckFailed:
             self.logger.info(
                 "Resources are missing.  Triggering install to reconcile resources"
             )
@@ -124,6 +129,10 @@ class MetacontrollerOperatorCharm(CharmBase):
             )
             self._install(event)
             return
+
+        self.logger.info("Resources are ok.  Unit in ActiveStatus")
+        self.unit.status = ActiveStatus()
+        return
 
     def _remove(self, _):
         """Remove charm"""
@@ -143,7 +152,7 @@ class MetacontrollerOperatorCharm(CharmBase):
             "namespace": self._namespace,
             "metacontroller_image": self._metacontroller_image,
         }
-        with open(self._manifests_file_root / self._resource_files[yaml_name]) as f:
+        with open(self._manifest_file_root / self._resource_files[yaml_name]) as f:
             return codecs.load_all_yaml(f, context=context)
 
     def _render_all_resources(self):
@@ -154,34 +163,46 @@ class MetacontrollerOperatorCharm(CharmBase):
         return resources
 
     def _check_deployed_resources(self):
-        """Check the status of all deployed resources, returning True if ok"""
+        """Check the status of deployed resources, returning True if ok else raising CheckFailed
+
+        All abnormalities are captured in logs
+        """
         expected_resources = self._render_all_resources()
         found_resources = [None] * len(expected_resources)
+        errors = []
+
+        self.logger.info("Checking for expected resources")
         for i, resource in enumerate(expected_resources):
-            self.logger.info(f"Checking for '{resource.metadata}'")
             try:
-                found_resources[i] = get_k8s_obj(resource, self.lightkube_client)
+                found_resources[i] = self.lightkube_client.get(
+                    type(resource),
+                    resource.metadata.name,
+                    namespace=resource.metadata.namespace,
+                )
             except lightkube.core.exceptions.ApiError:
-                self.logger.info(
+                errors.append(
                     f"Cannot find k8s object for metadata '{resource.metadata}'"
                 )
-        found_all_resources = all(found_resources)
 
-        statefulset_ok = validate_statefulsets(found_resources, self.logger)
+        self.logger.info("Checking readiness of found StatefulSets")
+        statefulsets_ok, statefulsets_errors = validate_statefulsets(found_resources)
+        errors.extend(statefulsets_errors)
 
-        return found_all_resources and statefulset_ok
+        # Log any errors
+        for err in errors:
+            self.logger.info(err)
 
-    @property
-    def manifest_file_root(self):
-        return self._manifests_file_root
-
-    @manifest_file_root.setter
-    def manifest_file_root(self, value):
-        self._manifests_file_root = Path(value)
+        if len(errors) == 0:
+            return True
+        else:
+            raise CheckFailed(
+                "Some Kubernetes resources missing/not ready.  See logs for details",
+                WaitingStatus,
+            )
 
     def _get_manifest_files(self) -> list:
         """Returns a list of all manifest files"""
-        return glob.glob(str(self.manifest_file_root / "*.yaml"))
+        return glob.glob(str(self._manifest_file_root / "*.yaml"))
 
     @property
     def lightkube_client(self):
@@ -194,26 +215,29 @@ class MetacontrollerOperatorCharm(CharmBase):
         self._lightkube_client = client
 
 
-def validate_statefulsets(objs, logger=None):
+def validate_statefulsets(objs):
     """Returns True if all StatefulSets in objs have the expected number of readyReplicas else False
 
     Optionally emits a message to logger for any StatefulSets that do not have their desired number
     of replicas
+
+    Returns: Tuple of (Success [Boolean], Errors [list of str error messages]
     """
-    statefulset_not_ok = False
+    errors = []
+
     for obj in objs:
         if isinstance(obj, StatefulSet):
             readyReplicas = obj.status.readyReplicas
             replicas_expected = obj.spec.replicas
             if readyReplicas != replicas_expected:
-                statefulset_not_ok = True
-                if logger:
-                    logger.info(
-                        f"StatefulSet {obj.metadata.name} in namespace "
-                        f"{obj.metadata.namespace} has {readyReplicas} readyReplicas, "
-                        f"expected {replicas_expected}"
-                    )
-    return not statefulset_not_ok
+                message = (
+                    f"StatefulSet {obj.metadata.name} in namespace "
+                    f"{obj.metadata.namespace} has {readyReplicas} readyReplicas, "
+                    f"expected {replicas_expected}"
+                )
+                errors.append(message)
+
+    return len(errors) == 0, errors
 
 
 ALLOWED_IF_EXISTS = (None, "replace", "patch")
@@ -281,11 +305,15 @@ def create_all_lightkube_objects(
                     )
 
 
-def get_k8s_obj(obj, client=None):
-    if not client:
-        client = lightkube.Client()
+class CheckFailed(Exception):
+    """Raise this exception if one of the checks in main fails."""
 
-    return client.get(type(obj), obj.metadata.name, namespace=obj.metadata.namespace)
+    def __init__(self, msg, status_type=None):
+        super().__init__()
+
+        self.msg = msg
+        self.status_type = status_type
+        self.status = status_type(msg)
 
 
 if __name__ == "__main__":
