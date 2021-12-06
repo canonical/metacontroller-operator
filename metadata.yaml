@@ -1,5 +1,4 @@
 name: metacontroller-operator
-display-name: Metacontroller-operator
 description: |
   Metacontroller is an add-on for Kubernetes to make it easier to write and deploy custom controllers,
   reducing the need for boilerplate code.
