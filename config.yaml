@@ -2,10 +2,6 @@
 # See LICENSE file for licensing details.
 
 options:
-  metrics-api:
-    type: string
-    default: '/metrics'
-    description: metrics api route
   metrics-port:
     type: string
     default: '9999'

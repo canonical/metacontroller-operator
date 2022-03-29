@@ -27,6 +27,7 @@ from tenacity import (
 
 
 METACONTROLLER_IMAGE = "metacontroller/metacontroller:v0.3.0"
+METRICS_PATH = "/metrics"
 
 
 class MetacontrollerOperatorCharm(CharmBase):
@@ -45,7 +46,7 @@ class MetacontrollerOperatorCharm(CharmBase):
             jobs=[
                 {
                     "job_name": "metacontroller_operator",
-                    "metrics_path": self.config["metrics-api"],
+                    "metrics_path": METRICS_PATH,
                     "static_configs": [
                         {"targets": ["*:{}".format(self.config["metrics-port"])]}
                     ],
