@@ -45,7 +45,6 @@ class MetacontrollerOperatorCharm(CharmBase):
             jobs=[
                 {
                     "job_name": "metacontroller_operator",
-                    "scrape_interval": self.config["metrics-scrape-interval"],
                     "metrics_path": self.config["metrics-api"],
                     "static_configs": [
                         {"targets": ["*:{}".format(self.config["metrics-port"])]}
