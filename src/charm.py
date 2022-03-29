@@ -8,6 +8,8 @@ from typing import Optional
 import logging
 from pathlib import Path
 
+from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus, WaitingStatus, MaintenanceStatus, BlockedStatus
@@ -37,9 +39,35 @@ class MetacontrollerOperatorCharm(CharmBase):
             self.model.unit.status = WaitingStatus("Waiting for leadership")
             return
 
+        self.prometheus_provider = MetricsEndpointProvider(
+            charm=self,
+            relation_name="monitoring",
+            jobs=[
+                {
+                    "job_name": "metacontroller_operator",
+                    "scrape_interval": self.config["metrics-scrape-interval"],
+                    "metrics_path": self.config["metrics-api"],
+                    "static_configs": [
+                        {"targets": ["*:{}".format(self.config["metrics-port"])]}
+                    ],
+                }
+            ],
+        )
+
+        self.dashboard_provider = GrafanaDashboardProvider(self)
+
         self.framework.observe(self.on.install, self._install)
         self.framework.observe(self.on.remove, self._remove)
         self.framework.observe(self.on.update_status, self._update_status)
+
+        monitoring_events = [
+            self.on["monitoring"].relation_changed,
+            self.on["monitoring"].relation_broken,
+            self.on["monitoring"].relation_departed,
+        ]
+
+        for event in monitoring_events:
+            self.framework.observe(event, self._update_status)
 
         self.logger: logging.Logger = logging.getLogger(__name__)
 

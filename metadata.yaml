@@ -5,3 +5,8 @@ description: |
 
   https://github.com/metacontroller/metacontroller
 summary: An add-on for Kubernetes to write and deploy custom controllers from simple scripts
+provides:
+  monitoring:
+    interface: prometheus_scrape
+  grafana-dashboard:
+    interface: grafana_dashboard
