@@ -1,8 +1,0 @@
-# Copyright 2022 Canonical Ltd.
-# See LICENSE file for licensing details.
-
-options:
-  metrics-port:
-    type: string
-    default: '9999'
-    description: Metrics port

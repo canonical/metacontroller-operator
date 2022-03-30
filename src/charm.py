@@ -28,6 +28,7 @@ from tenacity import (
 
 METACONTROLLER_IMAGE = "metacontroller/metacontroller:v0.3.0"
 METRICS_PATH = "/metrics"
+METRICS_PORT = "9999"
 
 
 class MetacontrollerOperatorCharm(CharmBase):
@@ -42,13 +43,12 @@ class MetacontrollerOperatorCharm(CharmBase):
 
         self.prometheus_provider = MetricsEndpointProvider(
             charm=self,
-            relation_name="monitoring",
+            relation_name="metrics-endpoint",
             jobs=[
                 {
-                    "job_name": "metacontroller_operator",
                     "metrics_path": METRICS_PATH,
                     "static_configs": [
-                        {"targets": ["*:{}".format(self.config["metrics-port"])]}
+                        {"targets": ["*:{}".format(METRICS_PORT)]}
                     ],
                 }
             ],
@@ -61,9 +61,9 @@ class MetacontrollerOperatorCharm(CharmBase):
         self.framework.observe(self.on.update_status, self._update_status)
 
         monitoring_events = [
-            self.on["monitoring"].relation_changed,
-            self.on["monitoring"].relation_broken,
-            self.on["monitoring"].relation_departed,
+            self.on["metrics-endpoint"].relation_changed,
+            self.on["metrics-endpoint"].relation_broken,
+            self.on["metrics-endpoint"].relation_departed,
         ]
 
         for event in monitoring_events:
