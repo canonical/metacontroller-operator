@@ -90,3 +90,5 @@ async def test_prometheus_grafana_integration(ops_test: OpsTest):
 # TODO: Add test for charm removal
 # TODO: Add test that USES metacontroller for something (act on a namespace
 #  given particular metadata, similar to kfp?)
+# TODO: Add test that makes sure the Grafana relation actually works
+#  once the template is defined.

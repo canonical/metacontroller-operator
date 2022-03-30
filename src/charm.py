@@ -54,20 +54,14 @@ class MetacontrollerOperatorCharm(CharmBase):
             ],
         )
 
-        self.dashboard_provider = GrafanaDashboardProvider(self)
+        self.dashboard_provider = GrafanaDashboardProvider(
+            charm=self,
+            relation_name="grafana-dashboards",
+        )
 
         self.framework.observe(self.on.install, self._install)
         self.framework.observe(self.on.remove, self._remove)
         self.framework.observe(self.on.update_status, self._update_status)
-
-        monitoring_events = [
-            self.on["metrics-endpoint"].relation_changed,
-            self.on["metrics-endpoint"].relation_broken,
-            self.on["metrics-endpoint"].relation_departed,
-        ]
-
-        for event in monitoring_events:
-            self.framework.observe(event, self._update_status)
 
         self.logger: logging.Logger = logging.getLogger(__name__)
 
