@@ -8,6 +8,8 @@ from typing import Optional
 import logging
 from pathlib import Path
 
+from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus, WaitingStatus, MaintenanceStatus, BlockedStatus
@@ -25,6 +27,8 @@ from tenacity import (
 
 
 METACONTROLLER_IMAGE = "metacontroller/metacontroller:v0.3.0"
+METRICS_PATH = "/metrics"
+METRICS_PORT = "9999"
 
 
 class MetacontrollerOperatorCharm(CharmBase):
@@ -36,6 +40,24 @@ class MetacontrollerOperatorCharm(CharmBase):
         if not self.unit.is_leader():
             self.model.unit.status = WaitingStatus("Waiting for leadership")
             return
+
+        self.prometheus_provider = MetricsEndpointProvider(
+            charm=self,
+            relation_name="metrics-endpoint",
+            jobs=[
+                {
+                    "metrics_path": METRICS_PATH,
+                    "static_configs": [
+                        {"targets": ["*:{}".format(METRICS_PORT)]}
+                    ],
+                }
+            ],
+        )
+
+        self.dashboard_provider = GrafanaDashboardProvider(
+            charm=self,
+            relation_name="grafana-dashboards",
+        )
 
         self.framework.observe(self.on.install, self._install)
         self.framework.observe(self.on.remove, self._remove)
