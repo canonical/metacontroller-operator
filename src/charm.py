@@ -47,9 +47,7 @@ class MetacontrollerOperatorCharm(CharmBase):
             jobs=[
                 {
                     "metrics_path": METRICS_PATH,
-                    "static_configs": [
-                        {"targets": ["*:{}".format(METRICS_PORT)]}
-                    ],
+                    "static_configs": [{"targets": ["*:{}".format(METRICS_PORT)]}],
                 }
             ],
         )
