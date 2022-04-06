@@ -8,5 +8,5 @@ summary: An add-on for Kubernetes to write and deploy custom controllers from si
 provides:
   metrics-endpoint:
     interface: prometheus_scrape
-  grafana-dashboards:
+  grafana-dashboard:
     interface: grafana_dashboard
