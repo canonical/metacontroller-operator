@@ -52,10 +52,7 @@ class MetacontrollerOperatorCharm(CharmBase):
             ],
         )
 
-        self.dashboard_provider = GrafanaDashboardProvider(
-            charm=self,
-            relation_name="grafana-dashboards",
-        )
+        self.dashboard_provider = GrafanaDashboardProvider(self)
 
         self.framework.observe(self.on.install, self._install)
         self.framework.observe(self.on.remove, self._remove)
