@@ -324,9 +324,11 @@ from typing import Dict, List, Optional, Union
 
 import yaml
 from ops.charm import CharmBase, RelationRole
-from ops.framework import BoundEvent, EventBase, EventSource, Object, ObjectEvents
+from ops.framework import EventBase, EventSource, Object, ObjectEvents
 
 # The unique Charmhub library identifier, never change it
+from ops.model import ModelError
+
 LIBID = "bc84295fef5f4049878f07b131968ee2"
 
 # Increment this major API version when introducing breaking changes
@@ -921,7 +923,7 @@ class AlertRules:
         elif path.is_file():
             self.alert_groups.extend(self._from_file(path.parent, path))
         else:
-            logger.debug("Alert rules path does not exist: %s", path)
+            logger.warning("path does not exist: %s", path)
 
     def as_dict(self) -> dict:
         """Return standard alert rules file in dict representation.
@@ -1088,7 +1090,7 @@ class MetricsEndpointConsumer(Object):
         """
         alerts = {}  # type: Dict[str, dict] # mapping b/w juju identifiers and alert rule files
         for relation in self._charm.model.relations[self._relation_name]:
-            if not relation.units or not relation.app:
+            if not relation.units:
                 continue
 
             alert_rules = json.loads(relation.data[relation.app].get("alert_rules", "{}"))
@@ -1128,7 +1130,7 @@ class MetricsEndpointConsumer(Object):
             rules: a dict of alert rules
         """
         if "groups" not in rules:
-            logger.debug("No alert groups were found in relation data")
+            logger.warning("No alert groups were found in relation data")
             return None
 
         # Construct an ID based on what's in the alert rules if they have labels
@@ -1430,7 +1432,6 @@ class MetricsEndpointProvider(Object):
         relation_name: str = DEFAULT_RELATION_NAME,
         jobs=None,
         alert_rules_path: str = DEFAULT_ALERT_RULES_RELATIVE_PATH,
-        refresh_event: Optional[Union[BoundEvent, List[BoundEvent]]] = None,
     ):
         """Construct a metrics provider for a Prometheus charm.
 
@@ -1524,8 +1525,6 @@ class MetricsEndpointProvider(Object):
                 files.  Defaults to "./prometheus_alert_rules",
                 resolved relative to the directory hosting the charm entry file.
                 The alert rules are automatically updated on charm upgrade.
-            refresh_event: an optional bound event or list of bound events which
-                will be observed to re-set scrape job data (IP address and others)
 
         Raises:
             RelationNotFoundError: If there is no relation in the charm's metadata.yaml
@@ -1544,7 +1543,7 @@ class MetricsEndpointProvider(Object):
         try:
             alert_rules_path = _resolve_dir_against_charm_path(charm, alert_rules_path)
         except InvalidAlertRulePathError as e:
-            logger.debug(
+            logger.warning(
                 "Invalid Prometheus alert rules folder at %s: %s",
                 e.alert_rules_absolute_path,
                 e.message,
@@ -1564,35 +1563,19 @@ class MetricsEndpointProvider(Object):
         self.framework.observe(events.relation_joined, self._set_scrape_job_spec)
         self.framework.observe(events.relation_changed, self._set_scrape_job_spec)
 
-        if not refresh_event:
-            if len(self._charm.meta.containers) == 1:
-                if "kubernetes" in self._charm.meta.series:
-                    # This is a podspec charm
-                    refresh_event = [self._charm.on.update_status]
-                else:
-                    # This is a sidecar/pebble charm
-                    container = list(self._charm.meta.containers.values())[0]
-                    refresh_event = [self._charm.on[container.name.replace("-", "_")].pebble_ready]
-            else:
-                logger.warning(
-                    "%d containers are present in metadata.yaml and "
-                    "refresh_event was not specified. Defaulting to update_status. "
-                    "Metrics IP may not be set in a timely fashion.",
-                    len(self._charm.meta.containers),
-                )
-                refresh_event = [self._charm.on.update_status]
+        # dirty fix: set the ip address when the containers start, as a workaround
+        # for not being able to lookup the pod ip
+        for container_name in charm.unit.containers:
+            self.framework.observe(
+                charm.on[container_name].pebble_ready,
+                self._set_unit_ip,
+            )
 
-        else:
-            if not isinstance(refresh_event, list):
-                refresh_event = [refresh_event]
-
-        for ev in refresh_event:
-            self.framework.observe(ev, self._set_unit_ip)
+        # podspec charms do not have a pebble ready event so unit ips need to be set these events
+        self.framework.observe(self._charm.on.update_status, self._set_unit_ip)
+        self.framework.observe(self._charm.on.config_changed, self._set_unit_ip)
 
         self.framework.observe(self._charm.on.upgrade_charm, self._set_scrape_job_spec)
-
-        # If there is no leader during relation_joined we will still need to set alert rules.
-        self.framework.observe(self._charm.on.leader_elected, self._set_scrape_job_spec)
 
     def _set_scrape_job_spec(self, event):
         """Ensure scrape target information is made available to prometheus.
@@ -1719,7 +1702,7 @@ class PrometheusRulesProvider(Object):
         try:
             dir_path = _resolve_dir_against_charm_path(charm, dir_path)
         except InvalidAlertRulePathError as e:
-            logger.debug(
+            logger.warning(
                 "Invalid Prometheus alert rules folder at %s: %s",
                 e.alert_rules_absolute_path,
                 e.message,
@@ -1889,13 +1872,13 @@ class MetricsEndpointAggregator(Object):
         jobs = []  # list of scrape jobs, one per relation
         for relation in self.model.relations[self._target_relation]:
             targets = self._get_targets(relation)
-            if targets and relation.app:
+            if targets:
                 jobs.append(self._static_scrape_job(targets, relation.app.name))
 
         groups = []  # list of alert rule groups, one group per relation
         for relation in self.model.relations[self._alert_rules_relation]:
             unit_rules = self._get_alert_rules(relation)
-            if unit_rules and relation.app:
+            if unit_rules:
                 appname = relation.app.name
                 rules = self._label_alert_rules(unit_rules, appname)
                 group = {"name": self._group_name(appname), "rules": rules}
@@ -2298,13 +2281,13 @@ class PromqlTransformer:
         arch = "amd64" if arch == "x86_64" else arch
         res = "promql-transform-{}".format(arch)
         try:
-            path = Path(res).resolve()
-            path.chmod(0o777)
+            path = self._charm.model.resources.fetch(res)
+            os.chmod(path, 0o777)
             return path
         except NotImplementedError:
             logger.debug("System lacks support for chmod")
-        except FileNotFoundError:
-            logger.debug('Could not locate promql transform at: "{}"'.format(res))
+        except (NameError, ModelError):
+            logger.debug('No resource available for the platform "{}"'.format(arch))
         return None
 
     def _exec(self, cmd):
