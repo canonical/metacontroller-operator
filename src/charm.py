@@ -55,7 +55,6 @@ class MetacontrollerOperatorCharm(CharmBase):
         self.dashboard_provider = GrafanaDashboardProvider(self)
 
         self.framework.observe(self.on.install, self._install)
-        self.framework.observe(self.on.remove, self._remove)
         self.framework.observe(self.on.update_status, self._update_status)
 
         self.logger: logging.Logger = logging.getLogger(__name__)
@@ -150,10 +149,6 @@ class MetacontrollerOperatorCharm(CharmBase):
         self.logger.info("Resources are ok.  Unit in ActiveStatus")
         self.unit.status = ActiveStatus()
         return
-
-    def _remove(self, _):
-        """Remove charm"""
-        raise NotImplementedError()
 
     def _create_resource(self, resource_name, if_exists="patch"):
         self.logger.info(f"Applying manifests for {resource_name}")
