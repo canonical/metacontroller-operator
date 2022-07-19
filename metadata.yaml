@@ -4,6 +4,8 @@ description: |
   reducing the need for boilerplate code.
 
   https://github.com/metacontroller/metacontroller
+assumes:
+  - juju >= 2.9
 summary: An add-on for Kubernetes to write and deploy custom controllers from simple scripts
 provides:
   metrics-endpoint:
