@@ -25,5 +25,6 @@ spec:
         args:
         - -v=4
         - --logtostderr
-        - --discovery-interval=20s
+        - --zap-log-level=4
+        - --discovery-interval=3600s
   volumeClaimTemplates: []
