@@ -60,7 +60,7 @@ class MetacontrollerOperatorCharm(CharmBase):
 
         self._name: str = self.model.app.name
         self._namespace: str = self.model.name
-        self._metacontroller_image = "metacontroller/metacontroller:v0.3.0"
+        self._metacontroller_image = "docker.io/metacontrollerio/metacontroller:v2.0.4"
         self._resource_files: dict = {
             "crds": "metacontroller-crds-v1.yaml",
             "rbac": "metacontroller-rbac.yaml",
