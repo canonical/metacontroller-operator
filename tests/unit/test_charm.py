@@ -44,6 +44,7 @@ def test_render_resource(harness_with_charm):
     harness = harness_with_charm
     harness.charm._manifest_file_root = manifest_root
     harness.charm._resource_files = {"test_yaml": unrendered_yaml_file}
+    harness.charm._metacontroller_image = "sample/metacontroller:tag"
 
     assert harness.charm._manifest_file_root == Path(manifest_root)
 

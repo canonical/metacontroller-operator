@@ -7,7 +7,7 @@ spec:
   template:
     spec:
       containers:
-      - image: metacontroller/metacontroller:v0.3.0
+      - image: sample/metacontroller:tag
         name: metacontroller
 ---
 apiVersion: v1
