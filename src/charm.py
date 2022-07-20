@@ -26,7 +26,6 @@ from tenacity import (
 )
 
 
-METACONTROLLER_IMAGE = "metacontroller/metacontroller:v0.3.0"
 METRICS_PATH = "/metrics"
 METRICS_PORT = "9999"
 
@@ -61,7 +60,7 @@ class MetacontrollerOperatorCharm(CharmBase):
 
         self._name: str = self.model.app.name
         self._namespace: str = self.model.name
-        self._metacontroller_image: str = METACONTROLLER_IMAGE
+        self._metacontroller_image = "metacontroller/metacontroller:v0.3.0"
         self._resource_files: dict = {
             "crds": "metacontroller-crds-v1.yaml",
             "rbac": "metacontroller-rbac.yaml",
