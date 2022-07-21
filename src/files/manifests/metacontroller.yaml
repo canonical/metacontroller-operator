@@ -23,8 +23,6 @@ spec:
         image: {{ metacontroller_image }}
         command: ["/usr/bin/metacontroller"]
         args:
-        - -v=4
-        - --logtostderr
         - --zap-log-level=4
         - --discovery-interval=3600s
   volumeClaimTemplates: []
