@@ -61,7 +61,7 @@ async def test_prometheus_grafana_integration(ops_test: OpsTest):
         f"{prometheus}:grafana-dashboard", f"{grafana}:grafana-dashboard"
     )
     await ops_test.model.add_relation(
-        f"{jupyter_controller}:grafana-dashboard", f"{grafana}:grafana-dashboard"
+        f"{APP_NAME}:grafana-dashboard", f"{grafana}:grafana-dashboard"
     )
     await ops_test.model.deploy(
         prometheus_scrape_charm,
@@ -69,7 +69,7 @@ async def test_prometheus_grafana_integration(ops_test: OpsTest):
         config=scrape_config)
     await ops_test.model.add_relation(APP_NAME, prometheus_scrape_charm)
     await ops_test.model.add_relation(
-        f"{prometheus}:metrics-endpoint", f"{prometheus_scrape}:metrics-endpoint"
+        f"{prometheus}:metrics-endpoint", f"{prometheus_scrape_charm}:metrics-endpoint"
     )
     await ops_test.model.wait_for_idle(status="active", timeout=60 * 10)
 
