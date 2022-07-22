@@ -1,1 +1,3 @@
 pytest-operator
+# Temporarily pin to branch for demo purposes
+git+https://github.com/canonical/charmed-kubeflow-chisme.git@demo-shared-tests
