@@ -1,20 +1,21 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-from contextlib import nullcontext as does_not_raise
 import logging
+from contextlib import nullcontext as does_not_raise
 from pathlib import Path
 from unittest import mock
 
-from charm import MetacontrollerOperatorCharm, CheckFailed
 import lightkube.codecs
-from lightkube.resources.apps_v1 import Deployment, StatefulSet
-from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
-from lightkube.models.meta_v1 import ObjectMeta
-from lightkube.models.apps_v1 import StatefulSetSpec, StatefulSetStatus
-from ops.model import WaitingStatus, ActiveStatus, BlockedStatus, MaintenanceStatus
-from ops.testing import Harness
 import pytest
+from lightkube.models.apps_v1 import StatefulSetSpec, StatefulSetStatus
+from lightkube.models.meta_v1 import ObjectMeta
+from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
+from lightkube.resources.apps_v1 import Deployment, StatefulSet
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
+from ops.testing import Harness
+
+from charm import CheckFailed, MetacontrollerOperatorCharm
 
 logger = logging.getLogger(__name__)
 
@@ -49,9 +50,7 @@ def test_render_resource(harness_with_charm):
     assert harness.charm._manifest_file_root == Path(manifest_root)
 
     objs = harness.charm._render_resource("test_yaml")
-    rendered_yaml_expected = (
-        Path(manifest_root / expected_yaml_file).read_text().strip()
-    )
+    rendered_yaml_expected = Path(manifest_root / expected_yaml_file).read_text().strip()
     assert lightkube.codecs.dump_all_yaml(objs).strip() == rendered_yaml_expected
 
 
@@ -89,15 +88,11 @@ def returns_true(*args, **kwargs):
         (returns_true, ActiveStatus()),
         (
             CheckFailed("", BlockedStatus),
-            BlockedStatus(
-                "Some Kubernetes resources did not start correctly during install"
-            ),
+            BlockedStatus("Some Kubernetes resources did not start correctly during install"),
         ),
     ),
 )
-def test_install(
-    harness_with_charm, mocker, install_side_effect, expected_charm_status
-):
+def test_install(harness_with_charm, mocker, install_side_effect, expected_charm_status):
     mocker.patch("charm.MetacontrollerOperatorCharm._create_resource")
     mocker.patch(
         "charm.MetacontrollerOperatorCharm._check_deployed_resources",
@@ -105,9 +100,7 @@ def test_install(
     )
     mocker.patch("time.sleep")
 
-    expected_calls = [
-        mock.call(resource_name) for resource_name in ["rbac", "crds", "controller"]
-    ]
+    expected_calls = [mock.call(resource_name) for resource_name in ["rbac", "crds", "controller"]]
 
     harness = harness_with_charm
 
@@ -248,9 +241,7 @@ def test_check_deployed_resources(
     # Mock charm's lightkube client
     # Resources for mock of client.get are assigned to side_effect so a single resource is returned
     # for each call
-    lightkube_get_side_effect_fixture = request.getfixturevalue(
-        lightkube_get_side_effect_fixture
-    )
+    lightkube_get_side_effect_fixture = request.getfixturevalue(lightkube_get_side_effect_fixture)
     mock_client = mock.MagicMock()
     mock_client.get.side_effect = lightkube_get_side_effect_fixture
 

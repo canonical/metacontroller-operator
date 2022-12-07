@@ -3,11 +3,10 @@
 
 import logging
 from pathlib import Path
+
 import pytest
 import yaml
-
 from pytest_operator.plugin import OpsTest
-
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +26,7 @@ async def test_build_and_deploy_without_trust(ops_test: OpsTest):
         image_path = resource_data["upstream-source"]
         resources[resource_name] = image_path
 
-    logger.info(
-        f"Deploying charm {APP_NAME} using resources '{resources}' without `--trust`"
-    )
+    logger.info(f"Deploying charm {APP_NAME} using resources '{resources}' without `--trust`")
 
     await ops_test.model.deploy(
         entity_url=built_charm_path,
