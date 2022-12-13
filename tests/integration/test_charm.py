@@ -4,11 +4,11 @@
 import json
 import logging
 from pathlib import Path
+
 import pytest
 import requests
 import tenacity
 import yaml
-
 from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
@@ -80,12 +80,11 @@ async def test_prometheus_grafana_integration(ops_test: OpsTest):
 
     for attempt in retry_for_5_attempts:
         logger.info(
-            f"Testing prometheus deployment (attempt "
-            f"{attempt.retry_state.attempt_number})"
+            f"Testing prometheus deployment (attempt " f"{attempt.retry_state.attempt_number})"
         )
         with attempt:
             r = requests.get(
-                f'http://{prometheus_unit_ip}:9090/api/v1/query?'
+                f"http://{prometheus_unit_ip}:9090/api/v1/query?"
                 f'query=up{{juju_application="{APP_NAME}"}}'
             )
             response = json.loads(r.content.decode("utf-8"))
