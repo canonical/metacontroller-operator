@@ -3,28 +3,20 @@
 # See LICENSE file for licensing details.
 
 import glob
-from typing import Optional
-
 import logging
 from pathlib import Path
-
-from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
-from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
-from ops.charm import CharmBase
-from ops.main import main
-from ops.model import ActiveStatus, WaitingStatus, MaintenanceStatus, BlockedStatus
+from typing import Optional
 
 import lightkube
+from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube import codecs
-from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.core.exceptions import ApiError
-from tenacity import (
-    Retrying,
-    retry_if_exception_type,
-    stop_after_delay,
-    wait_exponential,
-)
-
+from lightkube.resources.apps_v1 import StatefulSet
+from ops.charm import CharmBase
+from ops.main import main
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
+from tenacity import Retrying, retry_if_exception_type, stop_after_delay, wait_exponential
 
 METRICS_PATH = "/metrics"
 METRICS_PORT = "9999"
@@ -115,9 +107,7 @@ class MetacontrollerOperatorCharm(CharmBase):
                 reraise=True,
             ):
                 with attempt:
-                    self.logger.info(
-                        f"Trying attempt {attempt.retry_state.attempt_number}"
-                    )
+                    self.logger.info(f"Trying attempt {attempt.retry_state.attempt_number}")
                     self._check_deployed_resources()
         except CheckFailed:
             self.unit.status = BlockedStatus(
@@ -136,9 +126,7 @@ class MetacontrollerOperatorCharm(CharmBase):
         try:
             self._check_deployed_resources()
         except CheckFailed:
-            self.logger.info(
-                "Resources are missing.  Triggering install to reconcile resources"
-            )
+            self.logger.info("Resources are missing.  Triggering install to reconcile resources")
             self.unit.status = MaintenanceStatus(
                 "Missing kubernetes resources detected - reinstalling"
             )
@@ -191,9 +179,7 @@ class MetacontrollerOperatorCharm(CharmBase):
                     namespace=resource.metadata.namespace,
                 )
             except lightkube.core.exceptions.ApiError:
-                errors.append(
-                    f"Cannot find k8s object for metadata '{resource.metadata}'"
-                )
+                errors.append(f"Cannot find k8s object for metadata '{resource.metadata}'")
 
         self.logger.info("Checking readiness of found StatefulSets")
         statefulsets_ok, statefulsets_errors = validate_statefulsets(found_resources)
@@ -238,12 +224,12 @@ def validate_statefulsets(objs):
 
     for obj in objs:
         if isinstance(obj, StatefulSet):
-            readyReplicas = obj.status.readyReplicas
+            ready_replicas = obj.status.readyReplicas
             replicas_expected = obj.spec.replicas
-            if readyReplicas != replicas_expected:
+            if ready_replicas != replicas_expected:
                 message = (
                     f"StatefulSet {obj.metadata.name} in namespace "
-                    f"{obj.metadata.namespace} has {readyReplicas} readyReplicas, "
+                    f"{obj.metadata.namespace} has {ready_replicas} readyReplicas, "
                     f"expected {replicas_expected}"
                 )
                 errors.append(message)

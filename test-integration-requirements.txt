@@ -1,2 +1,0 @@
-juju==3.0.1
-pytest-operator

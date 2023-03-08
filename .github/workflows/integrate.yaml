@@ -11,24 +11,24 @@ jobs:
 
   lib-check:
     name: Check libraries
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
       - name: Check libs
-        uses: canonical/charming-actions/check-libraries@2.0.0-rc
+        uses: canonical/charming-actions/check-libraries@2.2.2
         with:
           credentials: "${{ secrets.charmcraft-credentials }}"
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Install dependencies
       run: |
         set -eux
@@ -38,24 +38,26 @@ jobs:
 
   unit:
     name: Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install dependencies
         run: pip install tox
       - run: tox -vve unit
 
   integration:
     name: Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Setup operator environment
       uses: charmed-kubernetes/actions-operator@main
       with:
         provider: microk8s
-        channel: 1.22/stable
-        charmcraft-channel: latest/candidate
+        channel: 1.24/stable
+        # Pinned until this bug is resolved: https://bugs.launchpad.net/juju/+bug/1992833
+        bootstrap-options: "--agent-version=2.9.34"
+        microk8s-addons: "dns storage rbac metallb:10.64.140.43-10.64.140.49"
 
     - name: Test
       run: sg microk8s -c "tox -vve integration -- --model testing"
