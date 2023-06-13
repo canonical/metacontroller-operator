@@ -30,7 +30,7 @@ exceptiongroup==1.1.1
     #   -r requirements.txt
     #   anyio
     #   pytest
-google-auth==2.19.1
+google-auth==2.20.0
     # via
     #   -r requirements.txt
     #   kubernetes
