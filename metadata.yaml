@@ -7,7 +7,11 @@ description: |
 assumes:
   - juju >= 2.9
 summary: An add-on for Kubernetes to write and deploy custom controllers from simple scripts
-# oci-image for metacontroller is controlled by self._metacontroller_image in charm.py
+resources:
+  oci-image:
+    type: oci-image
+    description: OCI image for metacontroller
+    upstream-source: docker.io/metacontrollerio/metacontroller:v3.0.0
 provides:
   metrics-endpoint:
     interface: prometheus_scrape
