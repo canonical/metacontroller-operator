@@ -13,6 +13,7 @@ from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube import codecs
 from lightkube.core.exceptions import ApiError
 from lightkube.resources.apps_v1 import StatefulSet
+from oci_image import OCIImageResource, OCIImageResourceError
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
@@ -52,7 +53,8 @@ class MetacontrollerOperatorCharm(CharmBase):
 
         self._name: str = self.model.app.name
         self._namespace: str = self.model.name
-        self._metacontroller_image = "docker.io/metacontrollerio/metacontroller:v3.0.0"
+        self._metacontroller_image_resource = OCIImageResource(self, "oci-image")
+        self._metacontroller_image = self._fetch_image_path()
         self._resource_files: dict = {
             "crds": "metacontroller-crds-v1.yaml",
             "rbac": "metacontroller-rbac.yaml",
@@ -200,6 +202,13 @@ class MetacontrollerOperatorCharm(CharmBase):
     def _get_manifest_files(self) -> list:
         """Returns a list of all manifest files"""
         return glob.glob(str(self._manifest_file_root / "*.yaml"))
+
+    def _fetch_image_path(self):
+        try:
+            image_details = self._metacontroller_image_resource.fetch()
+        except OCIImageResourceError as e:
+            raise CheckFailed(f"{e.status.message}", e.status_type)
+        return image_details.get("imagePath")
 
     @property
     def lightkube_client(self):
