@@ -4,6 +4,5 @@
 #
 # dynamic list
 IMAGE_LIST=()
-IMAGE_LIST+=($(grep "self._metacontroller_image =" src/charm.py | awk '{print $3}' | sort --unique | sed s/,//g | sed s/\"//g))
+IMAGE_LIST+=($(find -type f -name metadata.yaml -exec yq '.resources | to_entries | .[] | .value | ."upstream-source"' {} \;))
 printf "%s\n" "${IMAGE_LIST[@]}"
-
