@@ -46,13 +46,14 @@ class MetacontrollerOperatorCharm(CharmBase):
         self.dashboard_provider = GrafanaDashboardProvider(self)
 
         self.framework.observe(self.on.install, self._install)
+        self.framework.observe(self.on.config_changed, self._install)
         self.framework.observe(self.on.update_status, self._update_status)
 
         self.logger: logging.Logger = logging.getLogger(__name__)
 
         self._name: str = self.model.app.name
         self._namespace: str = self.model.name
-        self._metacontroller_image = "docker.io/metacontrollerio/metacontroller:v2.0.4"
+        self._metacontroller_image = self.model.config["metacontroller-image"]
         self._resource_files: dict = {
             "crds": "metacontroller-crds-v1.yaml",
             "rbac": "metacontroller-rbac.yaml",
