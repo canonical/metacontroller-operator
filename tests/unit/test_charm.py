@@ -29,14 +29,6 @@ def harness():
 def harness_with_charm(harness):
     harness.set_leader(True)
     harness.set_model_name("test-namespace")
-    harness.add_oci_resource(
-        "oci-image",
-        {
-            "registrypath": "image",
-            "username": "",
-            "password": "",
-        },
-    )
     harness.begin()
     return harness
 
