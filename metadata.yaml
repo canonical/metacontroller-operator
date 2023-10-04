@@ -4,6 +4,7 @@ description: |
   reducing the need for boilerplate code.
 
   https://github.com/metacontroller/metacontroller
+docs: https://discourse.charmhub.io/t/8235
 assumes:
   - juju >= 2.9
 summary: An add-on for Kubernetes to write and deploy custom controllers from simple scripts
