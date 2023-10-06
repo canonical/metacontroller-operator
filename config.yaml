@@ -1,5 +1,5 @@
 options:
   metacontroller-image:
     type: string
-    default: docker.io/metacontrollerio/metacontroller:v2.0.4
+    default: docker.io/metacontrollerio/metacontroller:v3.0.0
     description: Metacontroller image
