@@ -94,8 +94,8 @@ class MetacontrollerOperatorCharm(CharmBase):
                 raise e
 
         self._create_resource("crds")
-
         self._create_resource("controller")
+        self._create_resource("service")
 
         self.logger.info("Waiting for installed Kubernetes objects to be operational")
 
