@@ -32,18 +32,6 @@ class MetacontrollerOperatorCharm(CharmBase):
             self.model.unit.status = WaitingStatus("Waiting for leadership")
             return
 
-        self.prometheus_provider = MetricsEndpointProvider(
-            charm=self,
-            relation_name="metrics-endpoint",
-            jobs=[
-                {
-                    "metrics_path": METRICS_PATH,
-                    "static_configs": [{"targets": ["*:{}".format(METRICS_PORT)]}],
-                }
-            ],
-        )
-
-        self.dashboard_provider = GrafanaDashboardProvider(self)
 
         self.framework.observe(self.on.install, self._install)
         self.framework.observe(self.on.config_changed, self._install)
@@ -58,7 +46,24 @@ class MetacontrollerOperatorCharm(CharmBase):
             "crds": "metacontroller-crds-v1.yaml",
             "rbac": "metacontroller-rbac.yaml",
             "controller": "metacontroller.yaml",
+            "service": "metacontroller-svc.yaml",
         }
+
+        # Observability integration
+        self.dashboard_provider = GrafanaDashboardProvider(self)
+        self.prometheus_provider = MetricsEndpointProvider(
+            charm=self,
+            relation_name="metrics-endpoint",
+            jobs=[
+                {
+                    "metrics_path": METRICS_PATH,
+                    "static_configs": [
+                        {"targets": [f"{self._name}-svc.{self._namespace}.svc:{METRICS_PORT}"]}
+                    ],
+                }
+            ],
+        )
+
 
         # TODO: Fix file imports and move ./src/files back to ./files
         self._manifest_file_root: Path = Path("./src/files/manifests/")
@@ -151,6 +156,7 @@ class MetacontrollerOperatorCharm(CharmBase):
             "app_name": self._name,
             "namespace": self._namespace,
             "metacontroller_image": self._metacontroller_image,
+            "metrics_port": METRICS_PORT,
         }
         with open(self._manifest_file_root / self._resource_files[yaml_name]) as f:
             return codecs.load_all_yaml(f, context=context)
