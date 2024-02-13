@@ -32,6 +32,24 @@ class MetacontrollerOperatorCharm(CharmBase):
             self.model.unit.status = WaitingStatus("Waiting for leadership")
             return
 
+        self.logger: logging.Logger = logging.getLogger(__name__)
+
+        self._name: str = self.model.app.name
+        self._namespace: str = self.model.name
+        self._metacontroller_image = self.model.config["metacontroller-image"]
+        self._resource_files: dict = {
+            "crds": "metacontroller-crds-v1.yaml",
+            "rbac": "metacontroller-rbac.yaml",
+            "controller": "metacontroller.yaml",
+            "service": "metacontroller-svc.yaml",
+        }
+
+        # TODO: Fix file imports and move ./src/files back to ./files
+        self._manifest_file_root: Path = Path("./src/files/manifests/")
+
+        self._lightkube_client: Optional[lightkube.Client] = None
+        self._max_time_checking_resources = 150
+
         # Observability integration
         self.dashboard_provider = GrafanaDashboardProvider(self)
         self.prometheus_provider = MetricsEndpointProvider(
@@ -51,23 +69,6 @@ class MetacontrollerOperatorCharm(CharmBase):
         self.framework.observe(self.on.config_changed, self._install)
         self.framework.observe(self.on.update_status, self._update_status)
 
-        self.logger: logging.Logger = logging.getLogger(__name__)
-
-        self._name: str = self.model.app.name
-        self._namespace: str = self.model.name
-        self._metacontroller_image = self.model.config["metacontroller-image"]
-        self._resource_files: dict = {
-            "crds": "metacontroller-crds-v1.yaml",
-            "rbac": "metacontroller-rbac.yaml",
-            "controller": "metacontroller.yaml",
-            "service": "metacontroller-svc.yaml",
-        }
-
-        # TODO: Fix file imports and move ./src/files back to ./files
-        self._manifest_file_root: Path = Path("./src/files/manifests/")
-
-        self._lightkube_client: Optional[lightkube.Client] = None
-        self._max_time_checking_resources = 150
 
     def _install(self, event):
         """Creates k8s resources required for the charm, patching over any existing ones it finds"""
