@@ -32,6 +32,21 @@ class MetacontrollerOperatorCharm(CharmBase):
             self.model.unit.status = WaitingStatus("Waiting for leadership")
             return
 
+        # Observability integration
+        self.dashboard_provider = GrafanaDashboardProvider(self)
+        self.prometheus_provider = MetricsEndpointProvider(
+            charm=self,
+            relation_name="metrics-endpoint",
+            jobs=[
+                {
+                    "metrics_path": METRICS_PATH,
+                    "static_configs": [
+                        {"targets": [f"{self._name}-svc.{self._namespace}.svc:{METRICS_PORT}"]}
+                    ],
+                }
+            ],
+        )
+
         self.framework.observe(self.on.install, self._install)
         self.framework.observe(self.on.config_changed, self._install)
         self.framework.observe(self.on.update_status, self._update_status)
@@ -47,21 +62,6 @@ class MetacontrollerOperatorCharm(CharmBase):
             "controller": "metacontroller.yaml",
             "service": "metacontroller-svc.yaml",
         }
-
-        # Observability integration
-        self.dashboard_provider = GrafanaDashboardProvider(self)
-        self.prometheus_provider = MetricsEndpointProvider(
-            charm=self,
-            relation_name="metrics-endpoint",
-            jobs=[
-                {
-                    "metrics_path": METRICS_PATH,
-                    "static_configs": [
-                        {"targets": [f"{self._name}-svc.{self._namespace}.svc:{METRICS_PORT}"]}
-                    ],
-                }
-            ],
-        )
 
         # TODO: Fix file imports and move ./src/files back to ./files
         self._manifest_file_root: Path = Path("./src/files/manifests/")
