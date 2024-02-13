@@ -69,7 +69,6 @@ class MetacontrollerOperatorCharm(CharmBase):
         self.framework.observe(self.on.config_changed, self._install)
         self.framework.observe(self.on.update_status, self._update_status)
 
-
     def _install(self, event):
         """Creates k8s resources required for the charm, patching over any existing ones it finds"""
         self.logger.info("Installing by instantiating Kubernetes objects")
