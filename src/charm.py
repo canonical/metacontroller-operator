@@ -32,23 +32,6 @@ class MetacontrollerOperatorCharm(CharmBase):
             self.model.unit.status = WaitingStatus("Waiting for leadership")
             return
 
-        self.prometheus_provider = MetricsEndpointProvider(
-            charm=self,
-            relation_name="metrics-endpoint",
-            jobs=[
-                {
-                    "metrics_path": METRICS_PATH,
-                    "static_configs": [{"targets": ["*:{}".format(METRICS_PORT)]}],
-                }
-            ],
-        )
-
-        self.dashboard_provider = GrafanaDashboardProvider(self)
-
-        self.framework.observe(self.on.install, self._install)
-        self.framework.observe(self.on.config_changed, self._install)
-        self.framework.observe(self.on.update_status, self._update_status)
-
         self.logger: logging.Logger = logging.getLogger(__name__)
 
         self._name: str = self.model.app.name
@@ -58,6 +41,7 @@ class MetacontrollerOperatorCharm(CharmBase):
             "crds": "metacontroller-crds-v1.yaml",
             "rbac": "metacontroller-rbac.yaml",
             "controller": "metacontroller.yaml",
+            "service": "metacontroller-svc.yaml",
         }
 
         # TODO: Fix file imports and move ./src/files back to ./files
@@ -65,6 +49,25 @@ class MetacontrollerOperatorCharm(CharmBase):
 
         self._lightkube_client: Optional[lightkube.Client] = None
         self._max_time_checking_resources = 150
+
+        # Observability integration
+        self.dashboard_provider = GrafanaDashboardProvider(self)
+        self.prometheus_provider = MetricsEndpointProvider(
+            charm=self,
+            relation_name="metrics-endpoint",
+            jobs=[
+                {
+                    "metrics_path": METRICS_PATH,
+                    "static_configs": [
+                        {"targets": [f"{self._name}-svc.{self._namespace}.svc:{METRICS_PORT}"]}
+                    ],
+                }
+            ],
+        )
+
+        self.framework.observe(self.on.install, self._install)
+        self.framework.observe(self.on.config_changed, self._install)
+        self.framework.observe(self.on.update_status, self._update_status)
 
     def _install(self, event):
         """Creates k8s resources required for the charm, patching over any existing ones it finds"""
@@ -91,8 +94,8 @@ class MetacontrollerOperatorCharm(CharmBase):
                 raise e
 
         self._create_resource("crds")
-
         self._create_resource("controller")
+        self._create_resource("service")
 
         self.logger.info("Waiting for installed Kubernetes objects to be operational")
 
@@ -151,6 +154,7 @@ class MetacontrollerOperatorCharm(CharmBase):
             "app_name": self._name,
             "namespace": self._namespace,
             "metacontroller_image": self._metacontroller_image,
+            "metrics_port": METRICS_PORT,
         }
         with open(self._manifest_file_root / self._resource_files[yaml_name]) as f:
             return codecs.load_all_yaml(f, context=context)
