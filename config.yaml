@@ -1,5 +1,5 @@
 options:
   metacontroller-image:
     type: string
-    default: docker.io/metacontrollerio/metacontroller:v3.0.0
+    default: charmedkubeflow/metacontroller:3.0.0-0ac1edc
     description: Metacontroller image
