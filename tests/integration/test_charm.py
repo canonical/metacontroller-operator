@@ -59,7 +59,6 @@ async def test_prometheus_grafana_integration(ops_test: OpsTest):
         constants.PROMETHEUS_TRUST,
         check=True,
     )
-    # FIXME: Unpin revision once https://github.com/canonical/bundle-kubeflow/issues/690 is closed
     await ops_test.juju(
         "deploy",
         constants.GRAFANA,
