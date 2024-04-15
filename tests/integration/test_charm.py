@@ -15,6 +15,12 @@ logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 APP_NAME = "metacontroller-operator"
+PROMETHEUS = "prometheus-k8s"
+PROMETHEUS_CHANNEL = "1.0/stable"
+GRAFANA = "grafana-k8s"
+GRAFANA_CHANNEL = "1.0/stable"
+PROMETHEUS_SCRAPE = "prometheus-scrape-config-k8s"
+PROMETHEUS_SCRAPE_CHANNEL = "1.0/stable"
 
 
 @pytest.mark.abort_on_fail
@@ -51,51 +57,46 @@ async def test_build_and_deploy_with_trust(ops_test: OpsTest):
 
 async def test_prometheus_grafana_integration(ops_test: OpsTest):
     """Deploy prometheus, grafana and required relations, then test the metrics."""
-    prometheus = "prometheus-k8s"
-    grafana = "grafana-k8s"
-    prometheus_scrape = "prometheus-scrape-config-k8s"
     scrape_config = {"scrape_interval": "30s"}
 
-    # Deploy and relate prometheus
-    # FIXME: Unpin revision once https://github.com/canonical/bundle-kubeflow/issues/688 is closed
     await ops_test.juju(
         "deploy",
-        prometheus,
+        PROMETHEUS,
         "--channel",
-        "latest/edge",
-        "--revision",
-        "137",
+        PROMETHEUS_CHANNEL,
         "--trust",
         check=True,
     )
-    # FIXME: Unpin revision once https://github.com/canonical/bundle-kubeflow/issues/690 is closed
     await ops_test.juju(
         "deploy",
-        grafana,
+        GRAFANA,
         "--channel",
-        "latest/edge",
-        "--revision",
-        "89",
+        GRAFANA_CHANNEL,
         "--trust",
         check=True,
     )
-    await ops_test.model.deploy(prometheus_scrape, channel="latest/beta", config=scrape_config)
+    await ops_test.model.deploy(
+        PROMETHEUS_SCRAPE,
+        channel=PROMETHEUS_SCRAPE_CHANNEL,
+        config=scrape_config,
+    )
 
-    await ops_test.model.add_relation(APP_NAME, prometheus_scrape)
+    await ops_test.model.add_relation(APP_NAME, PROMETHEUS_SCRAPE)
     await ops_test.model.add_relation(
-        f"{prometheus}:grafana-dashboard", f"{grafana}:grafana-dashboard"
+        f"{PROMETHEUS}:grafana-dashboard", f"{GRAFANA}:grafana-dashboard"
     )
     await ops_test.model.add_relation(
-        f"{APP_NAME}:grafana-dashboard", f"{grafana}:grafana-dashboard"
+        f"{APP_NAME}:grafana-dashboard", f"{GRAFANA}:grafana-dashboard"
     )
     await ops_test.model.add_relation(
-        f"{prometheus}:metrics-endpoint", f"{prometheus_scrape}:metrics-endpoint"
+        f"{PROMETHEUS}:metrics-endpoint",
+        f"{PROMETHEUS_SCRAPE}:metrics-endpoint",
     )
 
     await ops_test.model.wait_for_idle(status="active", timeout=60 * 20)
 
     status = await ops_test.model.get_status()
-    prometheus_unit_ip = status["applications"][prometheus]["units"][f"{prometheus}/0"]["address"]
+    prometheus_unit_ip = status["applications"][PROMETHEUS]["units"][f"{PROMETHEUS}/0"]["address"]
     logger.info(f"Prometheus available at http://{prometheus_unit_ip}:9090")
 
     for attempt in retry_for_5_attempts:
