@@ -16,6 +16,8 @@ certifi==2023.7.22
     #   requests
 charset-normalizer==3.2.0
     # via requests
+cosl==0.0.11
+    # via -r requirements.in
 exceptiongroup==1.1.3
     # via anyio
 google-auth==2.22.0
@@ -50,7 +52,9 @@ oauthlib==3.2.2
 oci-image==1.0.0
     # via -r requirements.in
 ops==2.6.0
-    # via -r requirements.in
+    # via
+    #   -r requirements.in
+    #   cosl
 pyasn1==0.5.0
     # via
     #   pyasn1-modules
@@ -61,6 +65,7 @@ python-dateutil==2.8.2
     # via kubernetes
 pyyaml==6.0.1
     # via
+    #   cosl
     #   kubernetes
     #   lightkube
     #   ops
@@ -84,6 +89,8 @@ sniffio==1.3.0
     #   httpx
 tenacity==8.2.3
     # via -r requirements.in
+typing-extensions==4.11.0
+    # via cosl
 urllib3==1.26.16
     # via
     #   google-auth
