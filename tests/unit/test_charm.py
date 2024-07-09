@@ -100,9 +100,14 @@ def test_install(harness_with_charm, mocker, install_side_effect, expected_charm
     )
     mocker.patch("time.sleep")
 
-    expected_calls = [mock.call(resource_name) for resource_name in ["rbac", "crds", "controller"]]
+    expected_calls = [
+        mock.call(resource_name) for resource_name in ["rbac", "crds", "controller", "service"]
+    ]
 
     harness = harness_with_charm
+
+    # Mock the PodDefault CRD check
+    mocker.patch("lightkube.Client.get", return_value=True)
 
     # Fail fast
     harness.charm._max_time_checking_resources = 0.5
@@ -111,6 +116,24 @@ def test_install(harness_with_charm, mocker, install_side_effect, expected_charm
 
     harness.charm._create_resource.assert_has_calls(expected_calls)
     assert harness.charm.model.unit.status == expected_charm_status
+
+
+def test_install_poddefault_crd_not_found(harness_with_charm, mocker):
+    mocker.patch("charm.MetacontrollerOperatorCharm._create_resource")
+    mocker.patch("charm.MetacontrollerOperatorCharm._check_deployed_resources")
+    mocker.patch("time.sleep")
+
+    # Simulate PodDefault CRD not found
+    mocker.patch(
+        "lightkube.Client.get",
+        side_effect=lightkube.core.exceptions.ApiError(response=_FakeResponse(404)),
+    )
+
+    harness = harness_with_charm
+
+    harness.charm.on.install.emit()
+
+    assert harness.charm.model.unit.status == BlockedStatus("Missing PodDefault CRD")
 
 
 @pytest.mark.parametrize(
@@ -263,6 +286,8 @@ class _FakeResponse:
         reason = ""
         if self.code == 409:
             reason = "AlreadyExists"
+        if self.code == 404:
+            reason = "NotFound"
         return {
             "apiVersion": 1,
             "code": self.code,

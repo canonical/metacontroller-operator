@@ -14,6 +14,10 @@ from pytest_operator.plugin import OpsTest
 logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
+CONFIG = yaml.safe_load(Path("./config.yaml").read_text())
+ADMISSION_WEBHOOK_CHANNEL = "latest/edge"
+ADMISSION_WEBHOOK = "admission-webhook"
+ADMISSION_WEBHOOK_TRUST = True
 APP_NAME = "metacontroller-operator"
 PROMETHEUS = "prometheus-k8s"
 PROMETHEUS_CHANNEL = "latest/stable"
@@ -44,15 +48,28 @@ async def test_build_and_deploy_with_trust(ops_test: OpsTest):
     )
 
     apps = [APP_NAME]
-    await ops_test.model.wait_for_idle(
-        apps=apps, status="active", raise_on_blocked=True, timeout=300
+
+    # Wait and expect the charm to be in a blocked state due to missing PodDefault CRD
+    await ops_test.model.wait_for_idle(apps=apps, status="blocked", timeout=300)
+
+    # Deploy the admission webhook to apply the PodDefault CRD required by the charm workload
+    await ops_test.model.deploy(
+        entity_url=ADMISSION_WEBHOOK,
+        channel=ADMISSION_WEBHOOK_CHANNEL,
+        trust=ADMISSION_WEBHOOK_TRUST,
     )
-    for app_name in apps:
-        for i_unit, unit in enumerate(ops_test.model.applications[app_name].units):
-            assert (
-                unit.workload_status == "active"
-            ), f"Application {app_name}.Unit {i_unit}.workload_status != active"
-    assert ops_test.model.applications[APP_NAME].units[0].workload_status == "active"
+
+    # Wait for the admission webhook to become active
+    await ops_test.model.wait_for_idle(apps=[ADMISSION_WEBHOOK], status="active")
+
+    # Trigger an artificial config event to avoid waiting for the update_status event
+    # Config changes nothing but triggers the _install hook
+    await ops_test.model.applications[APP_NAME].set_config(
+        {"metacontroller-image": CONFIG["options"]["metacontroller-image"]["default"]}
+    )
+
+    # Wait for everything to be deployed and active
+    await ops_test.model.wait_for_idle(status="active", raise_on_blocked=False, timeout=60 * 10)
 
 
 async def test_prometheus_grafana_integration(ops_test: OpsTest):

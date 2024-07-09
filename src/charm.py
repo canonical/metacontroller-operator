@@ -12,6 +12,7 @@ from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube import codecs
 from lightkube.core.exceptions import ApiError
+from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
 from lightkube.resources.apps_v1 import StatefulSet
 from ops.charm import CharmBase
 from ops.main import main
@@ -20,6 +21,7 @@ from tenacity import Retrying, retry_if_exception_type, stop_after_delay, wait_e
 
 METRICS_PATH = "/metrics"
 METRICS_PORT = "9999"
+PODDEFAULT_CRD = "poddefaults.kubeflow.org"
 
 
 class MetacontrollerOperatorCharm(CharmBase):
@@ -72,6 +74,21 @@ class MetacontrollerOperatorCharm(CharmBase):
     def _install(self, event):
         """Creates k8s resources required for the charm, patching over any existing ones it finds"""
         self.logger.info("Installing by instantiating Kubernetes objects")
+
+        # Check for PodDefault CRD
+        self.logger.info("Checking for the presence of the PodDefault CRD")
+        try:
+            self.lightkube_client.get(CustomResourceDefinition, PODDEFAULT_CRD)
+        except ApiError as e:
+            if e.status.reason == "NotFound":
+                self.logger.error("PodDefault CRD not found. Blocking the installation.")
+                self.unit.status = BlockedStatus("Missing PodDefault CRD")
+                return
+            else:
+                raise e
+
+        self.logger.info("PodDefault CRD found. Proceeding with the installation.")
+
         self.unit.status = MaintenanceStatus("Instantiating Kubernetes objects")
 
         # create rbac
