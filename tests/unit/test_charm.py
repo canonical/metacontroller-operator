@@ -5,7 +5,7 @@ import logging
 from contextlib import nullcontext as does_not_raise
 from pathlib import Path
 from unittest import mock
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import lightkube.codecs
 import pytest
