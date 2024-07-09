@@ -1,10 +1,11 @@
-# Copyright 2021 Canonical Ltd.
+# Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 import logging
 from contextlib import nullcontext as does_not_raise
 from pathlib import Path
 from unittest import mock
+from unittest.mock import MagicMock, patch
 
 import lightkube.codecs
 import pytest
@@ -33,6 +34,14 @@ def harness_with_charm(harness):
     return harness
 
 
+@pytest.fixture()
+def mocked_lightkube_client(mocker):
+    """Mocks the Lightkube Client in charm.py, returning a mock instead."""
+    mocked_lightkube_client = MagicMock()
+    mocker.patch("charm.lightkube.Client", return_value=mocked_lightkube_client)
+    yield mocked_lightkube_client
+
+
 def test_not_leader(harness):
     harness.begin()
     assert harness.charm.model.unit.status == WaitingStatus("Waiting for leadership")
@@ -54,7 +63,7 @@ def test_render_resource(harness_with_charm):
     assert lightkube.codecs.dump_all_yaml(objs).strip() == rendered_yaml_expected
 
 
-def test_create_controller(harness_with_charm, mocker):
+def test_create_controller(harness_with_charm, mocked_lightkube_client, mocker):
     namespace = "test-namespace"
 
     mocked_render_controller_return = [
@@ -66,16 +75,12 @@ def test_create_controller(harness_with_charm, mocker):
         return_value=mocked_render_controller_return,
     )
 
-    mocked_lightkube_client = mock.Mock()
-    mocked_lightkube_client_expected_calls = [
-        mock.call.create(obj) for obj in mocked_render_controller_return
-    ]
-
     harness = harness_with_charm
     harness.charm.lightkube_client = mocked_lightkube_client
 
     harness.charm._create_resource("dummy-name")
-    mocked_lightkube_client.assert_has_calls(mocked_lightkube_client_expected_calls)
+    expected_calls = [mock.call.create(obj) for obj in mocked_render_controller_return]
+    mocked_lightkube_client.assert_has_calls(expected_calls)
 
 
 def returns_true(*args, **kwargs):
@@ -92,7 +97,9 @@ def returns_true(*args, **kwargs):
         ),
     ),
 )
-def test_install(harness_with_charm, mocker, install_side_effect, expected_charm_status):
+def test_install(
+    harness_with_charm, mocker, mocked_lightkube_client, install_side_effect, expected_charm_status
+):
     mocker.patch("charm.MetacontrollerOperatorCharm._create_resource")
     mocker.patch(
         "charm.MetacontrollerOperatorCharm._check_deployed_resources",
@@ -107,7 +114,7 @@ def test_install(harness_with_charm, mocker, install_side_effect, expected_charm
     harness = harness_with_charm
 
     # Mock the PodDefault CRD check
-    mocker.patch("lightkube.Client.get", return_value=True)
+    mocked_lightkube_client.get.return_value = True
 
     # Fail fast
     harness.charm._max_time_checking_resources = 0.5
@@ -118,15 +125,14 @@ def test_install(harness_with_charm, mocker, install_side_effect, expected_charm
     assert harness.charm.model.unit.status == expected_charm_status
 
 
-def test_install_poddefault_crd_not_found(harness_with_charm, mocker):
+def test_install_poddefault_crd_not_found(harness_with_charm, mocker, mocked_lightkube_client):
     mocker.patch("charm.MetacontrollerOperatorCharm._create_resource")
     mocker.patch("charm.MetacontrollerOperatorCharm._check_deployed_resources")
     mocker.patch("time.sleep")
 
     # Simulate PodDefault CRD not found
-    mocker.patch(
-        "lightkube.Client.get",
-        side_effect=lightkube.core.exceptions.ApiError(response=_FakeResponse(404)),
+    mocked_lightkube_client.get.side_effect = lightkube.core.exceptions.ApiError(
+        response=_FakeResponse(404)
     )
 
     harness = harness_with_charm
@@ -150,6 +156,7 @@ def test_install_poddefault_crd_not_found(harness_with_charm, mocker):
 def test_update_status(
     harness_with_charm,
     mocker,
+    mocked_lightkube_client,
     check_deployed_resources_side_effect,
     expected_status,
     n_install_calls,
@@ -159,6 +166,9 @@ def test_update_status(
         "charm.MetacontrollerOperatorCharm._check_deployed_resources",
         side_effect=check_deployed_resources_side_effect,
     )
+
+    # Mock the PodDefault CRD check
+    mocked_lightkube_client.get.return_value = True
 
     harness = harness_with_charm
     harness.charm.on.update_status.emit()
@@ -245,6 +255,7 @@ def test_check_deployed_resources(
     request,
     mocker,
     harness_with_charm,
+    mocked_lightkube_client,
     render_all_resources_side_effect_fixture,
     lightkube_get_side_effect_fixture,
     expected_result,
