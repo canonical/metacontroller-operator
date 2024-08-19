@@ -28,8 +28,7 @@ idna==3.4
     # via
     #   anyio
     #   requests
-    #   rfc3986
-jinja2==3.1.2
+jinja2==3.1.4
     # via -r requirements.in
 kubernetes==26.1.0
     # via -r requirements.in

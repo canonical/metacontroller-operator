@@ -46,13 +46,12 @@ jobs:
       uses: charmed-kubernetes/actions-operator@main
       with:
         provider: microk8s
-        channel: 1.24/stable
-        # Pinned until this bug is resolved: https://bugs.launchpad.net/juju/+bug/1992833
-        bootstrap-options: "--agent-version=2.9.34"
-        microk8s-addons: "dns storage rbac metallb:10.64.140.43-10.64.140.49"
+        channel: 1.29-strict/stable
+        juju-channel: 3.4/stable
+        charmcraft-channel: latest/candidate
 
     - name: Test
-      run: sg microk8s -c "tox -vve integration -- --model testing"
+      run: sg snap_microk8s -c "tox -vve integration -- --model testing"
 
       # On failure, capture debugging resources
     - name: Get all

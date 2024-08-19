@@ -74,6 +74,8 @@ httpx==0.23.3
     # via
     #   -r requirements.txt
     #   lightkube
+hvac==2.3.0
+    # via juju
 idna==3.4
     # via
     #   -r requirements.txt
@@ -89,17 +91,15 @@ ipython==8.11.0
     # via ipdb
 jedi==0.18.2
     # via ipython
-jinja2==3.1.2
+jinja2==3.1.4
     # via
     #   -r requirements-integration.in
     #   -r requirements.txt
     #   pytest-operator
-juju==2.9.44.0
+juju==3.5.2.0
     # via
     #   -r requirements-integration.in
     #   pytest-operator
-jujubundlelib==0.5.7
-    # via theblues
 kubernetes==26.1.0
     # via
     #   -r requirements.txt
@@ -111,9 +111,7 @@ lightkube-models==1.26.0.4
     #   -r requirements.txt
     #   lightkube
 macaroonbakery==1.3.1
-    # via
-    #   juju
-    #   theblues
+    # via juju
 markupsafe==2.1.2
     # via
     #   -r requirements.txt
@@ -135,7 +133,9 @@ oci-image==1.0.0
 ops==2.1.1
     # via -r requirements.txt
 packaging==23.0
-    # via pytest
+    # via
+    #   juju
+    #   pytest
 paramiko==2.12.0
     # via juju
 parso==0.8.3
@@ -197,7 +197,6 @@ pyyaml==6.0.1
     # via
     #   -r requirements.txt
     #   juju
-    #   jujubundlelib
     #   kubernetes
     #   lightkube
     #   ops
@@ -206,10 +205,10 @@ requests==2.28.2
     # via
     #   -r requirements-integration.in
     #   -r requirements.txt
+    #   hvac
     #   kubernetes
     #   macaroonbakery
     #   requests-oauthlib
-    #   theblues
 requests-oauthlib==1.3.1
     # via
     #   -r requirements.txt
@@ -242,8 +241,6 @@ stack-data==0.6.2
     # via ipython
 tenacity==8.2.2
     # via -r requirements.txt
-theblues==0.5.2
-    # via juju
 tomli==2.0.1
     # via
     #   ipdb
@@ -270,7 +267,7 @@ websocket-client==1.5.1
     #   -r requirements.txt
     #   kubernetes
     #   ops
-websockets==7.0
+websockets==12.0
     # via juju
 yarl==1.8.2
     # via aiohttp
