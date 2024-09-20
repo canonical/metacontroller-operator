@@ -8,3 +8,7 @@ output "provides" {
     metrics_endpoint  = "metrics-endpoint",
   }
 }
+
+output "requires" {
+  value = {}
+}
