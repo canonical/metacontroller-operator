@@ -7,5 +7,6 @@ build/
 __pycache__/
 *.py[cod]
 .idea
+venv/
 .terraform*
 *.tfstate*
