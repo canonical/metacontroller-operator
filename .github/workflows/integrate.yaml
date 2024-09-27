@@ -33,6 +33,7 @@ jobs:
     uses: canonical/charmed-kubeflow-workflows/.github/workflows/terraform-checks.yaml@main
     with:
       charm-path: .
+      channel: 3.0/stable
 
   unit:
     name: Unit Tests
