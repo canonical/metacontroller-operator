@@ -57,6 +57,7 @@ async def test_build_and_deploy_with_trust(ops_test: OpsTest):
         ops_test.model, APP_NAME, metrics=True, dashboard=True, logging=False
     )
 
+
 @retry(
     wait=wait_exponential(multiplier=1, min=1, max=10),
     stop=stop_after_attempt(10),
