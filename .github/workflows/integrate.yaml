@@ -22,10 +22,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install dependencies
-      run: |
-        set -eux
-        sudo apt update
-        sudo apt install tox
+      run: pip install tox
     - run: tox -vve lint
   
   terraform-checks:
