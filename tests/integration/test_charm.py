@@ -13,7 +13,6 @@ from charmed_kubeflow_chisme.testing import (
     get_alert_rules,
 )
 from pytest_operator.plugin import OpsTest
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 
@@ -58,11 +57,6 @@ async def test_build_and_deploy_with_trust(ops_test: OpsTest):
     )
 
 
-@retry(
-    wait=wait_exponential(multiplier=1, min=1, max=10),
-    stop=stop_after_attempt(10),
-    reraise=True,
-)
 async def test_metrics_enpoint(ops_test):
     """Test metrics_endpoints are defined in relation data bag and their accessibility.
     This function gets all the metrics_endpoints from the relation data bag, checks if
