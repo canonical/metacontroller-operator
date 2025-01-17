@@ -30,7 +30,6 @@ jobs:
     uses: canonical/charmed-kubeflow-workflows/.github/workflows/terraform-checks.yaml@main
     with:
       charm-path: .
-      channel: 3.0/stable
 
   unit:
     name: Unit Tests
@@ -50,10 +49,9 @@ jobs:
       uses: charmed-kubernetes/actions-operator@main
       with:
         provider: microk8s
-        channel: 1.25-strict/stable
-        microk8s-addons: "dns storage rbac metallb:10.64.140.43-10.64.140.49"
-        charmcaft-channel: latest/candidate
-        juju-channel: 3.5/stable
+        channel: 1.31-strict/stable
+        juju-channel: 3.6/stable
+        charmcraft-channel: 3.x/stable
 
     - name: Test
       run: sg snap_microk8s -c "tox -vve integration -- --model testing"
