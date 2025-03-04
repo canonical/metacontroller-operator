@@ -21,6 +21,14 @@ spec:
       containers:
       - name: metacontroller
         image: {{ metacontroller_image }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
         command: ["/usr/bin/metacontroller"]
         args:
         - --zap-log-level=4
