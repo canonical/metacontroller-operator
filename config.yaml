@@ -1,5 +1,5 @@
 options:
   metacontroller-image:
     type: string
-    default: ghcr.io/metacontroller/metacontroller:v4.11.22
+    default: charmedkubeflow/metacontroller:4.11.22-ddba67c
     description: Metacontroller image
