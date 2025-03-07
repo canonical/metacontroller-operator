@@ -14,6 +14,18 @@ metadata:
   name: {{ namespace }}-{{ app_name }}-charm
 rules:
 - apiGroups:
+  - kubeflow.org
+  resources:
+  - poddefaults  # needed for resource dispatcher
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - create
+  - patch
+  - delete
+- apiGroups:
   - ""
   resources:
   - namespaces
@@ -35,7 +47,8 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - secrets
+  - secrets          # needed for resource dispatcher
+  - serviceaccounts  # needed for resource dispatcher
   - configmaps
   verbs:
   - get
