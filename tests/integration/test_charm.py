@@ -75,6 +75,28 @@ async def test_alert_rules(ops_test):
     await assert_alert_rules(app, alert_rules)
 
 
+async def test_authorization_for_creating_resources(ops_test: OpsTest):
+    """Assert Metacontroller can create PodDefaults, Secrets and ServiceAccounts."""
+    logger.info("Checking with `kubectl auth can-i create`")
+
+    # Needed for Resource Dispatcher
+    resources = ["secrets", "serviceaccounts", "poddefaults"]
+    namespace = ops_test.model_name
+
+    for resource in resources:
+        _, stdout, _ = await ops_test.run(
+            "kubectl",
+            "auth",
+            "can-i",
+            "create",
+            f"{resource}",
+            f"--as=system:serviceaccount:{namespace}:{APP_NAME}-charm",
+            check=True,
+            fail_msg="Failed to execute kubectl auth",
+        )
+        assert stdout.strip() == "yes"
+
+
 # TODO: Add test for charm removal
 # TODO: Add test that USES metacontroller for something (act on a namespace
 #  given particular metadata, similar to kfp?)
