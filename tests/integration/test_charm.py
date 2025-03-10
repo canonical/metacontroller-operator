@@ -16,12 +16,24 @@ from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
 
+ADMISSION_WEBHOOK = "admission-webhook"
+ADMISSION_WEBHOOK_CHANNEL = "latest/edge"
+ADMISSION_WEBHOOK_TRUST = True
+
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 APP_NAME = "metacontroller-operator"
 
 
 @pytest.mark.abort_on_fail
 async def test_build_and_deploy_with_trust(ops_test: OpsTest):
+    # Deploy the Admission Webhook, to ensure PodDefault CRs are installed
+    await ops_test.model.deploy(
+        entity_url=ADMISSION_WEBHOOK,
+        channel=ADMISSION_WEBHOOK_CHANNEL,
+        trust=ADMISSION_WEBHOOK_TRUST,
+    )
+    await ops_test.model.wait_for_idle(apps=[ADMISSION_WEBHOOK], status="active", timeout=60 * 15)
+
     logger.info("Building charm")
     built_charm_path = await ops_test.build_charm("./")
     logger.info(f"Built charm {built_charm_path}")
@@ -73,6 +85,50 @@ async def test_alert_rules(ops_test):
     alert_rules = get_alert_rules()
     logger.info("found alert_rules: %s", alert_rules)
     await assert_alert_rules(app, alert_rules)
+
+
+async def test_authorization_for_creating_resources(ops_test: OpsTest):
+    """Assert Metacontroller can create PodDefaults, Secrets and ServiceAccounts."""
+    logger.info("Checking with `kubectl auth can-i create`")
+
+    # Needed for Resource Dispatcher
+    resources = ["secrets", "serviceaccounts", "poddefaults"]
+    namespace = ops_test.model_name
+
+    for resource in resources:
+        _, stdout, _ = await ops_test.run(
+            "kubectl",
+            "auth",
+            "can-i",
+            "list",
+            f"{resource}",
+            f"--as=system:serviceaccount:{namespace}:{APP_NAME}-charm",
+            check=True,
+            fail_msg="Failed to test listing resources rbac permissions with kubectl auth",
+        )
+
+        _, stdout, _ = await ops_test.run(
+            "kubectl",
+            "auth",
+            "can-i",
+            "get",
+            f"{resource}",
+            f"--as=system:serviceaccount:{namespace}:{APP_NAME}-charm",
+            check=True,
+            fail_msg="Failed to test getting resources rbac permissions with kubectl auth",
+        )
+
+        _, stdout, _ = await ops_test.run(
+            "kubectl",
+            "auth",
+            "can-i",
+            "create",
+            f"{resource}",
+            f"--as=system:serviceaccount:{namespace}:{APP_NAME}-charm",
+            check=True,
+            fail_msg="Failed to test creating resources rbac permissions with kubectl auth",
+        )
+        assert stdout.strip() == "yes"
 
 
 # TODO: Add test for charm removal
