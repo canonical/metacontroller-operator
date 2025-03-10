@@ -32,6 +32,7 @@ async def test_build_and_deploy_with_trust(ops_test: OpsTest):
         channel=ADMISSION_WEBHOOK_CHANNEL,
         trust=ADMISSION_WEBHOOK_TRUST,
     )
+    await ops_test.model.wait_for_idle(apps=[ADMISSION_WEBHOOK], status="active", timeout=60 * 15)
 
     logger.info("Building charm")
     built_charm_path = await ops_test.build_charm("./")
@@ -50,7 +51,6 @@ async def test_build_and_deploy_with_trust(ops_test: OpsTest):
         resources=resources,
         trust=True,
     )
-    await ops_test.model.wait_for_idle(apps=[ADMISSION_WEBHOOK], status="active", timeout=60 * 15)
 
     apps = [APP_NAME]
     await ops_test.model.wait_for_idle(
@@ -100,11 +100,33 @@ async def test_authorization_for_creating_resources(ops_test: OpsTest):
             "kubectl",
             "auth",
             "can-i",
+            "list",
+            f"{resource}",
+            f"--as=system:serviceaccount:{namespace}:{APP_NAME}-charm",
+            check=True,
+            fail_msg="Failed to test listing resources rbac permissions with kubectl auth",
+        )
+
+        _, stdout, _ = await ops_test.run(
+            "kubectl",
+            "auth",
+            "can-i",
+            "get",
+            f"{resource}",
+            f"--as=system:serviceaccount:{namespace}:{APP_NAME}-charm",
+            check=True,
+            fail_msg="Failed to test getting resources rbac permissions with kubectl auth",
+        )
+
+        _, stdout, _ = await ops_test.run(
+            "kubectl",
+            "auth",
+            "can-i",
             "create",
             f"{resource}",
             f"--as=system:serviceaccount:{namespace}:{APP_NAME}-charm",
             check=True,
-            fail_msg="Failed to execute kubectl auth",
+            fail_msg="Failed to test creating resources rbac permissions with kubectl auth",
         )
         assert stdout.strip() == "yes"
 
