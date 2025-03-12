@@ -17,10 +17,14 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v3
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v5.3.0
+      with:
+        python-version: 3.8
     - name: Install dependencies
       run: pip install tox
     - run: tox -vve lint
@@ -33,18 +37,26 @@ jobs:
 
   unit:
     name: Unit Tests
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v3
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v5.3.0
+        with:
+          python-version: 3.8
       - name: Install dependencies
         run: pip install tox
       - run: tox -vve unit
 
   integration:
     name: Integration Tests
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v3
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v5.3.0
+      with:
+        python-version: 3.8
     - name: Setup operator environment
       uses: charmed-kubernetes/actions-operator@main
       with:
@@ -54,7 +66,7 @@ jobs:
         charmcraft-channel: 3.x/stable
 
     - name: Test
-      run: sg snap_microk8s -c "tox -vve integration -- --model testing"
+      run: tox -vve integration -- --model testing
 
       # On failure, capture debugging resources
     - name: Get all
