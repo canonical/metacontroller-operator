@@ -66,7 +66,7 @@ jobs:
         charmcraft-channel: 3.x/stable
 
     - name: Test
-      run: sg snap_microk8s -c "tox -vve integration -- --model testing"
+      run: tox -vve integration -- --model testing
 
       # On failure, capture debugging resources
     - name: Get all
