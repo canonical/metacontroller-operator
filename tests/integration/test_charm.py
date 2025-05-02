@@ -17,7 +17,7 @@ from pytest_operator.plugin import OpsTest
 logger = logging.getLogger(__name__)
 
 ADMISSION_WEBHOOK = "admission-webhook"
-ADMISSION_WEBHOOK_CHANNEL = "latest/edge"
+ADMISSION_WEBHOOK_CHANNEL = "1.10/stable"
 ADMISSION_WEBHOOK_TRUST = True
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
