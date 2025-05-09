@@ -12,13 +12,11 @@ from charmed_kubeflow_chisme.testing import (
     deploy_and_assert_grafana_agent,
     get_alert_rules,
 )
+from charms_dependencies import ADMISSION_WEBHOOK
 from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
 
-ADMISSION_WEBHOOK = "admission-webhook"
-ADMISSION_WEBHOOK_CHANNEL = "latest/edge"
-ADMISSION_WEBHOOK_TRUST = True
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 APP_NAME = "metacontroller-operator"
@@ -28,11 +26,13 @@ APP_NAME = "metacontroller-operator"
 async def test_build_and_deploy_with_trust(ops_test: OpsTest):
     # Deploy the Admission Webhook, to ensure PodDefault CRs are installed
     await ops_test.model.deploy(
-        entity_url=ADMISSION_WEBHOOK,
-        channel=ADMISSION_WEBHOOK_CHANNEL,
-        trust=ADMISSION_WEBHOOK_TRUST,
+        entity_url=ADMISSION_WEBHOOK.charm,
+        channel=ADMISSION_WEBHOOK.channel,
+        trust=ADMISSION_WEBHOOK.trust,
     )
-    await ops_test.model.wait_for_idle(apps=[ADMISSION_WEBHOOK], status="active", timeout=60 * 15)
+    await ops_test.model.wait_for_idle(
+        apps=[ADMISSION_WEBHOOK.charm], status="active", timeout=60 * 15
+    )
 
     logger.info("Building charm")
     built_charm_path = await ops_test.build_charm("./")
