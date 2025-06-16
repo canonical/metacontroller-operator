@@ -13,8 +13,8 @@ from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube import codecs
 from lightkube.core.exceptions import ApiError
 from lightkube.resources.apps_v1 import StatefulSet
+from ops import main
 from ops.charm import CharmBase
-from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 from tenacity import Retrying, retry_if_exception_type, stop_after_delay, wait_exponential
 
