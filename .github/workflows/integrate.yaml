@@ -20,9 +20,9 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install dependencies
-      run: pip install tox
+      run: pipx install tox
     - run: tox -vve lint
   
   terraform-checks:
@@ -35,16 +35,16 @@ jobs:
     name: Unit Tests
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install dependencies
-        run: pip install tox
+        run: pipx install tox
       - run: tox -vve unit
 
   integration:
     name: Integration Tests
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Setup operator environment
       uses: charmed-kubernetes/actions-operator@main
       with:
