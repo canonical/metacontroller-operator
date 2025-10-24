@@ -1,6 +1,7 @@
 resource "juju_application" "metacontroller_operator" {
   charm {
     name     = "metacontroller-operator"
+    base     = var.base
     channel  = var.channel
     revision = var.revision
   }
