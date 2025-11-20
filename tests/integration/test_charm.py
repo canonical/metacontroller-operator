@@ -69,7 +69,7 @@ async def test_build_and_deploy_with_trust(ops_test: OpsTest):
     )
 
 
-async def test_metrics_enpoint(ops_test):
+async def test_metrics_endpoint(ops_test):
     """Test metrics_endpoints are defined in relation data bag and their accessibility.
     This function gets all the metrics_endpoints from the relation data bag, checks if
     they are available from the grafana-agent-k8s charm and finally compares them with the
@@ -87,48 +87,41 @@ async def test_alert_rules(ops_test):
     await assert_alert_rules(app, alert_rules)
 
 
-async def test_authorization_for_creating_resources(ops_test: OpsTest):
-    """Assert Metacontroller can create PodDefaults, Secrets and ServiceAccounts."""
+async def kubectl_can_i(
+    ops_test: OpsTest, action: str, resource: str, namespace: str, service_account: str
+) -> bool:
+    """Run kubectl auth can-i command for given action and resource, as given service account."""
     logger.info("Checking with `kubectl auth can-i create`")
+    _, stdout, _ = await ops_test.run(
+        "kubectl",
+        "auth",
+        "can-i",
+        action,
+        resource,
+        f"--as=system:serviceaccount:{namespace}:{service_account}",
+        check=True,
+        fail_msg="Failed to test listing resources rbac permissions with kubectl auth",
+    )
+    return stdout.strip() == "yes"
+
+
+async def test_authorization_for_creating_resources(ops_test: OpsTest):
+    """Assert Metacontroller can create K8s resources."""
 
     # Needed for Resource Dispatcher
-    resources = ["secrets", "serviceaccounts", "poddefaults"]
+    resources = ["secrets", "serviceaccounts", "poddefaults", "roles", "rolebindings"]
+    actions = ["list", "get", "create"]
     namespace = ops_test.model_name
 
     for resource in resources:
-        _, stdout, _ = await ops_test.run(
-            "kubectl",
-            "auth",
-            "can-i",
-            "list",
-            f"{resource}",
-            f"--as=system:serviceaccount:{namespace}:{APP_NAME}-charm",
-            check=True,
-            fail_msg="Failed to test listing resources rbac permissions with kubectl auth",
-        )
-
-        _, stdout, _ = await ops_test.run(
-            "kubectl",
-            "auth",
-            "can-i",
-            "get",
-            f"{resource}",
-            f"--as=system:serviceaccount:{namespace}:{APP_NAME}-charm",
-            check=True,
-            fail_msg="Failed to test getting resources rbac permissions with kubectl auth",
-        )
-
-        _, stdout, _ = await ops_test.run(
-            "kubectl",
-            "auth",
-            "can-i",
-            "create",
-            f"{resource}",
-            f"--as=system:serviceaccount:{namespace}:{APP_NAME}-charm",
-            check=True,
-            fail_msg="Failed to test creating resources rbac permissions with kubectl auth",
-        )
-        assert stdout.strip() == "yes"
+        for action in actions:
+            assert kubectl_can_i(
+                ops_test=ops_test,
+                action=action,
+                resource=resource,
+                namespace=namespace,
+                service_account=f"{APP_NAME}-charm",
+            )
 
 
 # TODO: Add test for charm removal
