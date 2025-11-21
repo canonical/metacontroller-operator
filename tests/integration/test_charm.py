@@ -115,7 +115,7 @@ async def test_authorization_for_creating_resources(ops_test: OpsTest):
 
     for resource in resources:
         for action in actions:
-            assert kubectl_can_i(
+            assert await kubectl_can_i(
                 ops_test=ops_test,
                 action=action,
                 resource=resource,
