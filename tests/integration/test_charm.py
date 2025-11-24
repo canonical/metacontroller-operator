@@ -110,7 +110,7 @@ async def test_authorization_for_creating_resources(ops_test: OpsTest):
 
     # Needed for Resource Dispatcher
     resources = ["secrets", "serviceaccounts", "poddefaults", "roles", "rolebindings"]
-    actions = ["list", "get", "create"]
+    actions = ["list", "get", "create", "delete"]
     namespace = ops_test.model_name
 
     for resource in resources:
