@@ -50,6 +50,7 @@ rules:
   - secrets          # needed for resource dispatcher
   - serviceaccounts  # needed for resource dispatcher
   - configmaps
+  - pods
   verbs:
   - get
   - list
@@ -58,6 +59,7 @@ rules:
   - update
   - patch
   - delete
+  - deletecollection
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
@@ -95,6 +97,7 @@ rules:
   - update
   - patch
   - delete
+  - deletecollection
 - apiGroups:
   - networking.istio.io
   resources:
