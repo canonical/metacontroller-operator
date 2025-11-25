@@ -109,19 +109,36 @@ async def test_authorization_for_creating_resources(ops_test: OpsTest):
     """Assert Metacontroller can create K8s resources."""
 
     # Needed for Resource Dispatcher
-    resources = ["secrets", "serviceaccounts", "poddefaults", "roles", "rolebindings"]
-    actions = ["list", "get", "create", "delete"]
+    necessary_permissions = [
+        (resource, action)
+        for resource in [
+            "secrets",
+            "services",
+            "serviceaccounts",
+            "pods",
+            "poddefaults",
+            "configmaps",
+            "roles",
+            "rolebindings",
+        ]
+        for action in ["get", "list", "watch", "create", "update", "patch", "delete"]
+    ]
+    necessary_permissions.extend(
+        [
+            (resource, "deletecollection")
+            for resource in ["services", "serviceaccounts", "pods", "configmaps"]
+        ]
+    )
     namespace = ops_test.model_name
 
-    for resource in resources:
-        for action in actions:
-            assert await kubectl_can_i(
-                ops_test=ops_test,
-                action=action,
-                resource=resource,
-                namespace=namespace,
-                service_account=f"{APP_NAME}-charm",
-            )
+    for resource, action in necessary_permissions:
+        assert await kubectl_can_i(
+            ops_test=ops_test,
+            action=action,
+            resource=resource,
+            namespace=namespace,
+            service_account=f"{APP_NAME}-charm",
+        )
 
 
 # TODO: Add test for charm removal
