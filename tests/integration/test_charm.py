@@ -9,10 +9,14 @@ import yaml
 from charmed_kubeflow_chisme.testing import (
     assert_alert_rules,
     assert_metrics_endpoint,
+    assert_security_context,
     deploy_and_assert_grafana_agent,
+    generate_container_securitycontext_map,
     get_alert_rules,
+    get_pod_names,
 )
 from charms_dependencies import ADMISSION_WEBHOOK
+from lightkube import Client
 from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
@@ -20,6 +24,14 @@ logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 APP_NAME = "metacontroller-operator"
+CONTAINERS_SECURITY_CONTEXT_MAP = generate_container_securitycontext_map(METADATA)
+
+
+@pytest.fixture(scope="session")
+def lightkube_client() -> Client:
+    """Returns lightkube Kubernetes client"""
+    client = Client(field_manager=f"{APP_NAME}")
+    return client
 
 
 @pytest.mark.abort_on_fail
@@ -139,6 +151,27 @@ async def test_authorization_for_creating_resources(ops_test: OpsTest):
             namespace=namespace,
             service_account=f"{APP_NAME}-charm",
         )
+
+
+@pytest.mark.parametrize("container_name", list(CONTAINERS_SECURITY_CONTEXT_MAP.keys()))
+async def test_container_security_context(
+    ops_test: OpsTest,
+    lightkube_client: Client,
+    container_name: str,
+):
+    """Test container security context is correctly set.
+
+    Verify that container spec defines the security context with correct
+    user ID and group ID.
+    """
+    pod_name = get_pod_names(ops_test.model.name, APP_NAME)[0]
+    assert_security_context(
+        lightkube_client,
+        pod_name,
+        container_name,
+        CONTAINERS_SECURITY_CONTEXT_MAP,
+        ops_test.model.name,
+    )
 
 
 # TODO: Add test for charm removal
