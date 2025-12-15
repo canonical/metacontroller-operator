@@ -193,6 +193,7 @@ async def test_container_security_context(
     for pod, pod_containers in pod_container_map.items():
         for container in pod_containers.keys():
             try:
+                logger.info("Checking security context for container %s (pod: %s)", container, pod)
                 assert_security_context(
                     lightkube_client,
                     pod,
