@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
+METACONTROLLER_YAML = yaml.safe_load(Path("./src/files/manifests/metacontroller.yaml").read_text())
 APP_NAME = "metacontroller-operator"
-CONTAINERS_SECURITY_CONTEXT_MAP = generate_container_securitycontext_map(METADATA)
 
 
 @pytest.fixture(scope="session")
@@ -81,7 +81,7 @@ async def test_build_and_deploy_with_trust(ops_test: OpsTest):
     )
 
 
-async def test_metrics_endpoint(ops_test):
+async def test_metrics_endpoint(ops_test: OpsTest):
     """Test metrics_endpoints are defined in relation data bag and their accessibility.
     This function gets all the metrics_endpoints from the relation data bag, checks if
     they are available from the grafana-agent-k8s charm and finally compares them with the
@@ -91,7 +91,7 @@ async def test_metrics_endpoint(ops_test):
     await assert_metrics_endpoint(app, metrics_port=9999, metrics_path="/metrics")
 
 
-async def test_alert_rules(ops_test):
+async def test_alert_rules(ops_test: OpsTest):
     """Test check charm alert rules and rules defined in relation data bag."""
     app = ops_test.model.applications[APP_NAME]
     alert_rules = get_alert_rules()
@@ -153,25 +153,56 @@ async def test_authorization_for_creating_resources(ops_test: OpsTest):
         )
 
 
-@pytest.mark.parametrize("container_name", list(CONTAINERS_SECURITY_CONTEXT_MAP.keys()))
+def build_pod_container_map(model_name: str, metacontroller_template: dict) -> dict[str, dict]:
+    """Build full map of pods:containers belonging to this charm.
+
+    This function builds a custom mapping of security context for pods and containers,
+    necessary because some pods are not directly spawned by juju but are defined in
+    `src/files/manifests/metacontroller.yaml`.
+    """
+    charm_pods: list = get_pod_names(model_name, APP_NAME)
+    statefulset_pods: list = get_pod_names(model_name, f"{model_name}-{APP_NAME}-charm")
+    metacontroller_container_name = metacontroller_template["spec"]["template"]["spec"][
+        "containers"
+    ][0]["name"]
+    metacontroller_container_security_context = metacontroller_template["spec"]["template"][
+        "spec"
+    ]["containers"][0]["securityContext"]
+    pod_container_map = {}
+
+    for charm_pod in charm_pods:
+        pod_container_map[charm_pod] = generate_container_securitycontext_map(METADATA)
+    for pod in statefulset_pods:
+        pod_container_map[pod] = {
+            metacontroller_container_name: metacontroller_container_security_context
+        }
+    return pod_container_map
+
+
 async def test_container_security_context(
     ops_test: OpsTest,
     lightkube_client: Client,
-    container_name: str,
 ):
     """Test container security context is correctly set.
 
     Verify that container spec defines the security context with correct
     user ID and group ID.
     """
-    pod_name = get_pod_names(ops_test.model.name, APP_NAME)[0]
-    assert_security_context(
-        lightkube_client,
-        pod_name,
-        container_name,
-        CONTAINERS_SECURITY_CONTEXT_MAP,
-        ops_test.model.name,
-    )
+    failed_checks = []
+    pod_container_map = build_pod_container_map(ops_test.model_name, METACONTROLLER_YAML)
+    for pod, pod_containers in pod_container_map.items():
+        for container in pod_containers.keys():
+            try:
+                assert_security_context(
+                    lightkube_client,
+                    pod,
+                    container,
+                    pod_containers,
+                    ops_test.model_name,
+                )
+            except AssertionError as err:
+                failed_checks.append(f"{pod}/{container}: {err}")
+    assert failed_checks == []
 
 
 # TODO: Add test for charm removal

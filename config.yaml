@@ -1,5 +1,6 @@
 options:
   metacontroller-image:
     type: string
+    # changing the image might require to update runAsUser and runAsGroup in metacontroller.yaml
     default: charmedkubeflow/metacontroller:4.11.22-ddba67c
     description: Metacontroller image

@@ -33,4 +33,7 @@ spec:
         args:
         - --zap-log-level=4
         - --discovery-interval=120s
+        securityContext:
+          runAsUser: 584792
+          runAsGroup: 584792
   volumeClaimTemplates: []
