@@ -1,9 +1,0 @@
-ops
-jinja2
-oci-image
-kubernetes
-lightkube
-lightkube-models
-tenacity
-# from prometheus_k8s.v0.prometheus_scrape.py
-cosl
