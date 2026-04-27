@@ -16,6 +16,7 @@ from charmed_kubeflow_chisme.testing import (
     get_pod_names,
 )
 from charms_dependencies import ADMISSION_WEBHOOK
+from jinja2 import Template
 from lightkube import Client
 from pytest_operator.plugin import OpsTest
 
@@ -23,7 +24,17 @@ logger = logging.getLogger(__name__)
 
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
-METACONTROLLER_YAML = yaml.safe_load(Path("./src/files/manifests/metacontroller.yaml").read_text())
+
+# Render the template with default values to get the YAML structure
+metacontroller_template = Template(Path("./src/files/manifests/metacontroller.yaml").read_text())
+metacontroller_rendered = metacontroller_template.render(
+    namespace="test-namespace",
+    app_name="metacontroller-operator",
+    metacontroller_image="test-image",
+    is_ambient=False,
+)
+METACONTROLLER_YAML = yaml.safe_load(metacontroller_rendered)
+
 APP_NAME = "metacontroller-operator"
 
 
