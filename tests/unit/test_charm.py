@@ -384,3 +384,56 @@ def test_service_mesh_relation_broken(
 
     # Verify that delete was called when relation was broken
     mock_policy_manager.delete.assert_called()
+
+
+@pytest.mark.parametrize(
+    "has_relation,mesh_type,expected_label_present",
+    [
+        (False, None, False),  # No relation - no label
+        (True, "ambient", True),  # Ambient mesh - label present
+    ],
+)
+@mock.patch("charm.lightkube.Client")
+@mock.patch("charm.ServiceMeshConsumer")
+@mock.patch("charm.PolicyResourceManager")
+def test_ambient_label_conditional_rendering(
+    mock_policy_manager_class: mock.MagicMock,
+    mock_service_mesh: mock.MagicMock,
+    mock_client: mock.MagicMock,
+    harness: Harness,
+    has_relation: bool,
+    mesh_type: str,
+    expected_label_present: bool,
+):
+    """Test that ambient label is conditionally present based on mesh relation and type."""
+    # Mock mesh relation
+    mock_mesh_instance = mock_service_mesh.return_value
+    if has_relation:
+        mock_mesh_instance._relation = mock.MagicMock()
+        mock_mesh_instance.mesh_type = mesh_type
+    else:
+        mock_mesh_instance._relation = None
+
+    harness.set_leader(True)
+    harness.set_model_name("test-namespace")
+    harness.begin()
+
+    # Render the controller resource
+    objs = harness.charm._render_resource("controller")
+
+    # Find the StatefulSet
+    statefulset = None
+    for obj in objs:
+        if isinstance(obj, StatefulSet):
+            statefulset = obj
+            break
+
+    assert statefulset is not None
+
+    # Check the ambient label based on expectations
+    pod_labels = statefulset.spec.template.metadata.labels
+    if expected_label_present:
+        assert "istio.io/dataplane-mode" in pod_labels
+        assert pod_labels["istio.io/dataplane-mode"] == "ambient"
+    else:
+        assert "istio.io/dataplane-mode" not in pod_labels

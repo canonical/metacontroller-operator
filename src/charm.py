@@ -17,6 +17,7 @@ from charmed_service_mesh_helpers.models import (
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.istio_beacon_k8s.v0.service_mesh import PolicyResourceManager, ServiceMeshConsumer
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
+from jinja2 import Template
 from lightkube import codecs
 from lightkube.core.exceptions import ApiError
 from lightkube.generic_resource import GenericNamespacedResource
@@ -189,14 +190,27 @@ class MetacontrollerOperatorCharm(CharmBase):
 
     def _render_resource(self, yaml_name: [str, Path]):
         """Returns a list of lightkube k8s objects for a yaml file, rendered in charm context"""
+        # Check if we're in ambient mode
+        is_ambient = False
+        if self._mesh._relation:
+            is_ambient = self._mesh.mesh_type == "ambient"
+
         context = {
             "app_name": self._name,
             "namespace": self._namespace,
             "metacontroller_image": self._metacontroller_image,
             "metrics_port": METRICS_PORT,
+            "is_ambient": is_ambient,
         }
+
         with open(self._manifest_file_root / self._resource_files[yaml_name]) as f:
-            return codecs.load_all_yaml(f, context=context)
+            template_content = f.read()
+
+        # Render the Jinja2 template
+        template = Template(template_content)
+        rendered_yaml = template.render(context)
+
+        return codecs.load_all_yaml(rendered_yaml)
 
     def _render_all_resources(self):
         """Returns a list of lightkube8s objects for all resources, rendered in charm context"""
