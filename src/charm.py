@@ -8,11 +8,21 @@ from pathlib import Path
 from typing import Optional
 
 import lightkube
+from charmed_service_mesh_helpers.models import (
+    Action,
+    AuthorizationPolicySpec,
+    Rule,
+    WorkloadSelector,
+)
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
+from charms.istio_beacon_k8s.v0.service_mesh import PolicyResourceManager, ServiceMeshConsumer
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube import codecs
 from lightkube.core.exceptions import ApiError
+from lightkube.generic_resource import GenericNamespacedResource
+from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.apps_v1 import StatefulSet
+from lightkube_extensions.types import AuthorizationPolicy
 from ops import main
 from ops.charm import CharmBase
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
@@ -20,6 +30,9 @@ from tenacity import Retrying, retry_if_exception_type, stop_after_delay, wait_e
 
 METRICS_PATH = "/metrics"
 METRICS_PORT = "9999"
+
+METRICS_ENDPOINT_RELATION_NAME = "metrics-endpoint"
+SERVICE_MESH_RELATION_NAME = "service-mesh"
 
 
 class MetacontrollerOperatorCharm(CharmBase):
@@ -54,7 +67,7 @@ class MetacontrollerOperatorCharm(CharmBase):
         self.dashboard_provider = GrafanaDashboardProvider(self)
         self.prometheus_provider = MetricsEndpointProvider(
             charm=self,
-            relation_name="metrics-endpoint",
+            relation_name=METRICS_ENDPOINT_RELATION_NAME,
             jobs=[
                 {
                     "metrics_path": METRICS_PATH,
@@ -65,9 +78,28 @@ class MetacontrollerOperatorCharm(CharmBase):
             ],
         )
 
+        self._mesh = ServiceMeshConsumer(
+            self,
+        )
+
+        # Allow all policy needed to allow the K8s API to talk to the webhook
+        self._allow_all_policy = self.generate_allow_all_authorization_policy(
+            app_name=self._name,
+            namespace=self._namespace,
+        )
+
         self.framework.observe(self.on.install, self._install)
         self.framework.observe(self.on.config_changed, self._install)
         self.framework.observe(self.on.update_status, self._update_status)
+        self.framework.observe(self.on.remove, self._on_remove)
+        self.framework.observe(
+            self.on[SERVICE_MESH_RELATION_NAME].relation_changed, self._on_event
+        )
+        # Handle removing authorization policies on relation broken
+        self.framework.observe(
+            self.on[SERVICE_MESH_RELATION_NAME].relation_broken,
+            self._remove_authorization_policies,
+        )
 
     def _install(self, event):
         """Creates k8s resources required for the charm, patching over any existing ones it finds"""
@@ -121,6 +153,7 @@ class MetacontrollerOperatorCharm(CharmBase):
 
         self.logger.info("Resources detected as running")
         self.logger.info("Install successful")
+        self._reconcile_policy_resource_manager()
         self.unit.status = ActiveStatus()
         return
 
@@ -138,8 +171,14 @@ class MetacontrollerOperatorCharm(CharmBase):
             return
 
         self.logger.info("Resources are ok.  Unit in ActiveStatus")
+        self._reconcile_policy_resource_manager()
         self.unit.status = ActiveStatus()
         return
+
+    def _on_remove(self, _):
+        """Remove all resources when the charm is removed."""
+        self.logger.info("Removing charm resources")
+        self._remove_authorization_policies(_)
 
     def _create_resource(self, resource_name, if_exists="patch"):
         self.logger.info(f"Applying manifests for {resource_name}")
@@ -215,6 +254,58 @@ class MetacontrollerOperatorCharm(CharmBase):
     @lightkube_client.setter
     def lightkube_client(self, client):
         self._lightkube_client = client
+
+    @property
+    def _policy_resource_manager(self) -> PolicyResourceManager:
+        """Create and return PolicyResourceManager, used to manage authorization policies."""
+        return PolicyResourceManager(
+            charm=self,
+            lightkube_client=lightkube.Client(field_manager=f"{self._name}-{self._namespace}"),
+            labels={
+                "app.kubernetes.io/instance": f"{self._name}-{self._namespace}",
+                "kubernetes-resource-handler-scope": f"{self._name}-allow-all",
+            },
+            logger=self.logger,
+        )
+
+    def generate_allow_all_authorization_policy(
+        self, app_name: str, namespace: str
+    ) -> GenericNamespacedResource:
+        """Return AuthorizationPolicy that allows any workload to talk to the workload deployment.
+
+        Args:
+            app_name: name of the app to allow traffic to
+            namespace: namespace of the app to allow traffic to
+        """
+        return AuthorizationPolicy(
+            metadata=ObjectMeta(
+                name=f"{app_name}-allow-all",
+                namespace=namespace,
+            ),
+            spec=AuthorizationPolicySpec(
+                selector=WorkloadSelector(
+                    # Use the unique label from src/files/manifests/metacontroller.yaml
+                    matchLabels={"app.kubernetes.io/name": f"{namespace}-{app_name}-charm"},
+                ),
+                action=Action.allow,
+                rules=[Rule()],
+            ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
+        )
+
+    def _reconcile_policy_resource_manager(self):
+        """Reconcile authorization policies via PolicyResourceManager."""
+        if self._mesh._relation:
+            self._policy_resource_manager.reconcile(
+                policies=[], mesh_type=self._mesh.mesh_type, raw_policies=[self._allow_all_policy]
+            )
+
+    def _remove_authorization_policies(self, _):
+        """Remove authorization policies via PolicyResourceManager."""
+        self._policy_resource_manager.delete()
+
+    def _on_event(self, _):
+        """Generic event handler to reconcile policy resource manager."""
+        self._reconcile_policy_resource_manager()
 
 
 def validate_statefulsets(objs):

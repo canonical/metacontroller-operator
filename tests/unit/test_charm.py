@@ -276,3 +276,111 @@ class _FakeApiError(lightkube.core.exceptions.ApiError):
 
     def __init__(self, code=401):
         super().__init__(response=_FakeResponse(code))
+
+
+@mock.patch("charm.lightkube.Client")
+@mock.patch("charm.ServiceMeshConsumer")
+@mock.patch("charm.PolicyResourceManager")
+def test_reconcile_policy_resource_manager_with_mesh(
+    mock_policy_manager_class: mock.MagicMock,
+    mock_service_mesh: mock.MagicMock,
+    mock_client: mock.MagicMock,
+    harness: Harness,
+):
+    """Test _reconcile_policy_resource_manager when service-mesh relation is present."""
+    # Mock _relation property to indicate a relation exists
+    mock_mesh_instance = mock_service_mesh.return_value
+    mock_mesh_instance._relation = mock.MagicMock()  # Relation exists
+    mock_mesh_instance.mesh_type = "istio"
+
+    harness.set_leader(True)
+    harness.set_model_name("test-namespace")
+    harness.begin()
+
+    # Mock the policy resource manager instance
+    mock_policy_manager = mock_policy_manager_class.return_value
+
+    harness.charm._reconcile_policy_resource_manager()
+
+    # Verify reconcile was called with correct parameters
+    mock_policy_manager.reconcile.assert_called_with(
+        policies=[], mesh_type="istio", raw_policies=[harness.charm._allow_all_policy]
+    )
+
+
+@mock.patch("charm.lightkube.Client")
+@mock.patch("charm.ServiceMeshConsumer")
+@mock.patch("charm.PolicyResourceManager")
+def test_reconcile_policy_resource_manager_without_mesh(
+    mock_policy_manager_class: mock.MagicMock,
+    mock_service_mesh: mock.MagicMock,
+    mock_client: mock.MagicMock,
+    harness: Harness,
+):
+    """Test _reconcile_policy_resource_manager when service-mesh relation is not present."""
+    # Mock _relation property to return None (no relation established)
+    mock_mesh_instance = mock_service_mesh.return_value
+    mock_mesh_instance._relation = None
+
+    harness.set_leader(True)
+    harness.set_model_name("test-namespace")
+    harness.begin()
+
+    # Mock the policy resource manager instance
+    mock_policy_manager = mock_policy_manager_class.return_value
+
+    harness.charm._reconcile_policy_resource_manager()
+
+    # Verify reconcile was NOT called when there's no service-mesh relation
+    mock_policy_manager.reconcile.assert_not_called()
+
+
+@mock.patch("charm.lightkube.Client")
+@mock.patch("charm.ServiceMeshConsumer")
+@mock.patch("charm.PolicyResourceManager")
+def test_on_remove_calls_remove_authorization_policies(
+    mock_policy_manager_class: mock.MagicMock,
+    mock_service_mesh: mock.MagicMock,
+    mock_client: mock.MagicMock,
+    harness: Harness,
+):
+    """Test that _on_remove calls _remove_authorization_policies."""
+    harness.set_leader(True)
+    harness.set_model_name("test-namespace")
+    harness.begin()
+
+    # Mock the policy resource manager instance
+    mock_policy_manager = mock_policy_manager_class.return_value
+
+    harness.charm._on_remove(None)
+
+    # Verify _remove_authorization_policies was called (which calls delete)
+    mock_policy_manager.delete.assert_called()
+
+
+@mock.patch("charm.lightkube.Client")
+@mock.patch("charm.ServiceMeshConsumer")
+@mock.patch("charm.PolicyResourceManager")
+def test_service_mesh_relation_broken(
+    mock_policy_manager_class: mock.MagicMock,
+    mock_service_mesh: mock.MagicMock,
+    mock_client: mock.MagicMock,
+    harness: Harness,
+):
+    """Test that service-mesh relation broken event removes authorization policies."""
+    harness.set_leader(True)
+    harness.set_model_name("test-namespace")
+    harness.begin()
+
+    # Mock the policy resource manager instance
+    mock_policy_manager = mock_policy_manager_class.return_value
+
+    # Add a service-mesh relation
+    relation_id = harness.add_relation("service-mesh", "istio-beacon-k8s")
+    harness.add_relation_unit(relation_id, "istio-beacon-k8s/0")
+
+    # Break the relation
+    harness.remove_relation(relation_id)
+
+    # Verify that delete was called when relation was broken
+    mock_policy_manager.delete.assert_called()
