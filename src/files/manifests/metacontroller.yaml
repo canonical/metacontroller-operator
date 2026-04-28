@@ -16,6 +16,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: "{{ namespace }}-{{ app_name }}-charm"
+        {% if is_ambient %}istio.io/dataplane-mode: ambient{% endif %}
     spec:
       serviceAccountName: "{{ app_name }}-charm"
       containers:

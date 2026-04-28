@@ -11,6 +11,7 @@ from charmed_kubeflow_chisme.testing import (
     assert_metrics_endpoint,
     assert_security_context,
     deploy_and_assert_grafana_agent,
+    deploy_and_integrate_service_mesh_charms,
     generate_container_securitycontext_map,
     get_alert_rules,
     get_pod_names,
@@ -31,11 +32,13 @@ metacontroller_rendered = metacontroller_template.render(
     namespace="test-namespace",
     app_name="metacontroller-operator",
     metacontroller_image="test-image",
-    is_ambient=False,
+    is_ambient=True,
 )
 METACONTROLLER_YAML = yaml.safe_load(metacontroller_rendered)
 
 APP_NAME = "metacontroller-operator"
+METRICS_PATH = "/metrics"
+METRICS_PORT = 9999
 
 
 @pytest.fixture(scope="session")
@@ -91,6 +94,11 @@ async def test_build_and_deploy_with_trust(ops_test: OpsTest):
         ops_test.model, APP_NAME, metrics=True, dashboard=True, logging=False
     )
 
+    # Deploy and integrate service mesh charms
+    await deploy_and_integrate_service_mesh_charms(
+        APP_NAME, ops_test.model, relate_to_ingress_route_endpoint=False
+    )
+
 
 async def test_metrics_endpoint(ops_test: OpsTest):
     """Test metrics_endpoints are defined in relation data bag and their accessibility.
@@ -99,7 +107,7 @@ async def test_metrics_endpoint(ops_test: OpsTest):
     ones provided to the function.
     """
     app = ops_test.model.applications[APP_NAME]
-    await assert_metrics_endpoint(app, metrics_port=9999, metrics_path="/metrics")
+    await assert_metrics_endpoint(app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH)
 
 
 async def test_alert_rules(ops_test: OpsTest):

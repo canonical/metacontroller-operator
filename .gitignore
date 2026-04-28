@@ -9,3 +9,4 @@ __pycache__/
 .idea
 .terraform*
 *.tfstate*
+coverage.xml
