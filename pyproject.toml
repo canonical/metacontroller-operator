@@ -54,6 +54,8 @@ lightkube-models = "^1.31.1.8"
 oci-image = "^1.0.0"
 ops = "^2.17.1"
 tenacity = "^9.0.0"
+charmed-service-mesh-helpers = "^0.4.0"
+lightkube-extensions = "^0.3.0"
 
 [tool.poetry.group.fmt]
 optional = true
@@ -90,7 +92,7 @@ optional = true
 
 [tool.poetry.group.integration.dependencies]
 juju = "<4.0"
-charmed-kubeflow-chisme = ">=0.4.14"
+charmed-kubeflow-chisme = "^0.4.14"
 aiohttp = "^3.10.11"
 jinja2 = "^3.1.4"
 pytest = "^8.3.4"
