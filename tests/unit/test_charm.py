@@ -387,10 +387,10 @@ def test_service_mesh_relation_broken(
 
 
 @pytest.mark.parametrize(
-    "has_relation,mesh_type,expected_label_present",
+    "has_relation,expected_label_present",
     [
-        (False, None, False),  # No relation - no label
-        (True, "ambient", True),  # Ambient mesh - label present
+        (False, False),  # No relation - no label
+        (True, True),  # Has mesh relation - label present
     ],
 )
 @mock.patch("charm.lightkube.Client")
@@ -402,15 +402,13 @@ def test_ambient_label_conditional_rendering(
     mock_client: mock.MagicMock,
     harness: Harness,
     has_relation: bool,
-    mesh_type: str,
     expected_label_present: bool,
 ):
-    """Test that ambient label is conditionally present based on mesh relation and type."""
+    """Test that ambient label is conditionally present based on mesh relation."""
     # Mock mesh relation
     mock_mesh_instance = mock_service_mesh.return_value
     if has_relation:
         mock_mesh_instance._relation = mock.MagicMock()
-        mock_mesh_instance.mesh_type = mesh_type
     else:
         mock_mesh_instance._relation = None
 

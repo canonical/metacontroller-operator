@@ -190,10 +190,8 @@ class MetacontrollerOperatorCharm(CharmBase):
 
     def _render_resource(self, yaml_name: [str, Path]):
         """Returns a list of lightkube k8s objects for a yaml file, rendered in charm context"""
-        # Check if we're in ambient mode
-        is_ambient = False
-        if self._mesh._relation:
-            is_ambient = self._mesh.mesh_type == "ambient"
+        # Check if we're in ambient mode (service-mesh relation only used for ambient)
+        is_ambient = bool(self._mesh._relation)
 
         context = {
             "app_name": self._name,

@@ -32,7 +32,7 @@ metacontroller_rendered = metacontroller_template.render(
     namespace="test-namespace",
     app_name="metacontroller-operator",
     metacontroller_image="test-image",
-    is_ambient=False,
+    is_ambient=True,
 )
 METACONTROLLER_YAML = yaml.safe_load(metacontroller_rendered)
 
