@@ -182,7 +182,7 @@ jobs:
         if: always()
 
       - name: Get application logs
-        run: kubectl logs -n testing --tail 1000 -lapp.kubernetes.io/name=metacontroller-operator
+        run: kubectl logs -n testing --tail 1000 -lapp.kubernetes.io/name=metacontroller-operator -c metacontroller
         if: failure()
 
       - name: Get application operator logs
