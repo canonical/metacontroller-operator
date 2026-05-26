@@ -179,7 +179,7 @@ jobs:
 
       - name: Get juju status
         run: juju status
-        if: failure()
+        if: always()
 
       - name: Get application logs
         run: kubectl logs -n testing --tail 1000 -lapp.kubernetes.io/name=metacontroller-operator
