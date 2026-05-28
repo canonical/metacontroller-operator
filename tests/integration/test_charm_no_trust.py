@@ -15,10 +15,14 @@ APP_NAME = "metacontroller-operator"
 
 
 @pytest.mark.abort_on_fail
-async def test_build_and_deploy_without_trust(ops_test: OpsTest):
+async def test_build_and_deploy_without_trust(ops_test: OpsTest, request):
     """Tests whether the Charm catches and messages that it was deployed without --trust"""
     logger.info("Building charm")
-    built_charm_path = await ops_test.build_charm("./")
+    built_charm_path = (
+        await ops_test.build_charm("./")
+        if not (entity_url := request.config.getoption("--charm-path"))
+        else entity_url
+    )
     logger.info(f"Built charm {built_charm_path}")
 
     resources = {}
